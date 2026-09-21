@@ -10,3 +10,6 @@ models/inswapper_128_fp16.onnx
 
 # Ignore the venv directory (virtual environment)
 venv/
+# Local setup (Claude)
+.venv/
+ffmpeg_bin/
