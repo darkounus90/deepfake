@@ -3,10 +3,7 @@
 # iRoopDeepFaceCam 
 ![iRoopDeepFaceCam-jpg](iRoopDeepFaceCam.jpg)
 
-## Support
-If you find this app useful, consider buying me a coffee!
 
-[![Buy Me A Coffee](https://img.buymeacoffee.com/button-api/?text=Buy%20me%20a%20coffee&button_colour=BD5FFF&font_colour=ffffff&font_family=Cookie&outline_colour=000000&coffee_colour=FFDD00)](https://buymeacoffee.com/ivideogameboss)
 
 Get ready to dive into a whole new world of fun with iRoopDeepFaceCam! This innovative tool, inspired by the original [roop](https://github.com/s0md3v/roop) lets you create face swaps using a live webcam, video, or image file. Want to make it even more exciting? Use an OBS virtual camera to act as your webcam! 
 
