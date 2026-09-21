@@ -2,6 +2,21 @@
 
 Instalación funcionando en `C:\dev\iRoopDeepFaceCam`.
 
+## Instalar en otro PC
+
+Requisitos: Windows 10/11, GPU NVIDIA con driver reciente, git y ~15 GB libres.
+
+```
+git clone https://github.com/darkounus90/deepfake.git
+cd deepfake
+install.bat
+```
+
+`install.bat` instala Python 3.10 si falta (winget), crea `.venv`, instala
+`requirements-local-cu128.txt` (PyTorch cu128 + el wheel precompilado de insightface
+en `wheels/`, así que no hace falta Visual Studio), aplica el parche de basicsr y
+descarga los modelos y ffmpeg. Después, `start-gpu.bat`.
+
 ## Arranque
 
 - `start-gpu.bat` -> CUDA, 5 hilos (recomendado)
