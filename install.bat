@@ -45,6 +45,9 @@ if not exist models mkdir models
 if not exist "models\inswapper_128_fp16.onnx" (
     curl -L --fail -o "models\inswapper_128_fp16.onnx" https://huggingface.co/ivideogameboss/iroopdeepfacecam/resolve/main/inswapper_128_fp16.onnx || goto :error
 ) else echo   inswapper_128_fp16.onnx ya existe
+if not exist "models\inswapper_128.onnx" (
+    curl -L --fail -o "models\inswapper_128.onnx" https://huggingface.co/hacksider/deep-live-cam/resolve/main/inswapper_128.onnx || goto :error
+) else echo   inswapper_128.onnx ya existe
 if not exist "models\GFPGANv1.4.pth" (
     curl -L --fail -o "models\GFPGANv1.4.pth" https://github.com/TencentARC/GFPGAN/releases/download/v1.3.4/GFPGANv1.4.pth || goto :error
 ) else echo   GFPGANv1.4.pth ya existe

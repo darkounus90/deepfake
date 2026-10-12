@@ -3,6 +3,7 @@ import cv2  # This is a library for working with images and videos
 import insightface  # This is a library for detecting and analyzing faces
 import threading  # This helps run parts of the program at the same time
 import math # This is for some math functions
+import os
 
 import modules.globals # This lets us use settings that apply to the whole program
 import modules.processors.frame.core # This is for processing video frames
@@ -108,7 +109,11 @@ def get_face_swapper() -> Any:
 
     with THREAD_LOCK: # This makes sure only one part of the program changes FACE_SWAPPER at a time
         if FACE_SWAPPER is None: # Checks if the face swapper hasn't been loaded yet
-            model_path = resolve_relative_path('../models/inswapper_128_fp16.onnx') # Gets the path to the face swapper model
+            # Prefer the full-precision model: the fp16 one can overflow on recent
+            # GPUs/onnxruntime-gpu (CUDA 12) and return a black face.
+            model_path = resolve_relative_path('../models/inswapper_128.onnx')
+            if not os.path.exists(model_path):
+                model_path = resolve_relative_path('../models/inswapper_128_fp16.onnx')
             # Loads the face swapper model
             FACE_SWAPPER = insightface.model_zoo.get_model(model_path, providers=modules.globals.execution_providers)
     return FACE_SWAPPER
