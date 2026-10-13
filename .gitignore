@@ -13,3 +13,7 @@ venv/
 # Local setup
 .venv/
 ffmpeg_bin/
+
+# Modelos grandes descargados por install.bat
+models/*.onnx
+models/*.pth
