@@ -94,7 +94,7 @@ use_ink_filter_black=False
 use_black_lines=False
 face_forehead_var=0.1
 
-auto_rotate_value = True 
+auto_rotate_value = False  # off by default: a false 180° detection would break the swap on an upright webcam
 auto_rotate_switch_main = None
 auto_rotate_switch_preview = None
 rotation_check_interval = 5

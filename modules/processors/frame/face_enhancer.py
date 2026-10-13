@@ -11,7 +11,7 @@ import modules.processors.frame.core
 
 from modules.face_analyser import get_one_face, get_many_faces, get_one_face_left, get_one_face_right, get_face_analyser
 from modules.typing import Frame, Face
-from modules.utilities import conditional_download, resolve_relative_path, is_image, is_video
+from modules.utilities import conditional_download, resolve_relative_path, is_image, is_video, imread_unicode, imwrite_unicode
 from modules.processors.frame.face_swapper import crop_face_region,create_adjusted_face,create_edge_blur_mask,blend_with_mask,reset_face_tracking
 
 FACE_ENHANCER = None
@@ -21,7 +21,7 @@ NAME = 'DLC.FACE-ENHANCER'
 
 # dowload GFPAN
 def pre_check() -> bool:
-    download_directory_path = resolve_relative_path('..\models')
+    download_directory_path = resolve_relative_path(os.path.join('..', 'models'))
     conditional_download(download_directory_path, ['https://github.com/TencentARC/GFPGAN/releases/download/v1.3.4/GFPGANv1.4.pth'])
     return True
 
@@ -42,7 +42,7 @@ def get_face_enhancer() -> Any:
     with THREAD_LOCK:
         if FACE_ENHANCER is None:
             if os.name == 'nt':
-                model_path = resolve_relative_path('..\models\GFPGANv1.4.pth')
+                model_path = resolve_relative_path(os.path.join('..', 'models', 'GFPGANv1.4.pth'))
                 
             else:
                 model_path = resolve_relative_path('../models/GFPGANv1.4.pth')
@@ -120,17 +120,17 @@ def process_frame(source_face: Face, temp_frame: Frame) -> Frame:
 def process_frames(source_path: str, temp_frame_paths: List[str], progress: Any = None) -> None:
 
     for temp_frame_path in temp_frame_paths:
-        temp_frame = cv2.imread(temp_frame_path)
+        temp_frame = imread_unicode(temp_frame_path)
         result = process_frame(None, temp_frame)
-        cv2.imwrite(temp_frame_path, result)
+        imwrite_unicode(temp_frame_path, result)
         if progress:
             progress.update(1)
 
 
 def process_image(source_path: str, target_path: str, output_path: str) -> None:
-    target_frame = cv2.imread(target_path)
+    target_frame = imread_unicode(target_path)
     result = process_frame(None, target_frame)
-    cv2.imwrite(output_path, result)
+    imwrite_unicode(output_path, result)
 
 
 def process_video(source_path: str, temp_frame_paths: List[str]) -> None:

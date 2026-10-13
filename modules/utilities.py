@@ -139,3 +139,30 @@ def conditional_download(download_directory_path: str, urls: List[str]) -> None:
 
 def resolve_relative_path(path: str) -> str:
     return os.path.abspath(os.path.join(os.path.dirname(__file__), path))
+
+
+def imread_unicode(path: str):
+    """cv2.imread that also works with accents/ñ in Windows paths. Returns None on failure."""
+    import cv2
+    import numpy as np
+    try:
+        data = np.fromfile(path, dtype=np.uint8)
+        if data.size == 0:
+            return None
+        return cv2.imdecode(data, cv2.IMREAD_COLOR)
+    except Exception:
+        return None
+
+
+def imwrite_unicode(path: str, image) -> bool:
+    """cv2.imwrite that also works with accents/ñ in Windows paths."""
+    import cv2
+    try:
+        ext = os.path.splitext(path)[1] or '.png'
+        ok, buffer = cv2.imencode(ext, image)
+        if not ok:
+            return False
+        buffer.tofile(path)
+        return True
+    except Exception:
+        return False

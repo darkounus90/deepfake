@@ -8,6 +8,7 @@ import os
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from waitress import serve
+from modules.utilities import imread_unicode
 import modules.globals
 # Import both processors
 from modules.processors.frame import face_swapper, face_enhancer
@@ -73,7 +74,7 @@ def swap_image():
         target_frame = cv2.cvtColor(target_frame, cv2.COLOR_BGRA2BGR)
 
     try:
-        source_image = cv2.imread(modules.globals.source_path)
+        source_image = imread_unicode(modules.globals.source_path)
         faces = get_many_faces(source_image)
         source_images = sorted(faces, key=lambda face: face.bbox[0])[:20]
         

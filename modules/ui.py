@@ -14,88 +14,190 @@ from modules.capturer import get_video_frame, get_video_frame_total
 from modules.processors.frame.core import get_frame_processors_modules
 from modules.processors.frame.face_swapper import estimate_head_rotation
 
-from modules.utilities import is_image, is_video, resolve_relative_path, has_image_extension
+from modules.utilities import is_image, is_video, resolve_relative_path, has_image_extension, imread_unicode
+from modules.typing import Face
 import numpy as np
 import time
 
 # Global reference to the worker so the dropdown can find it
 worker = None 
 
+# Media Foundation is slow to open some webcams on Windows (the "30 seconds"
+# start). Disabling its hardware transforms makes it open much faster.
+os.environ.setdefault('OPENCV_VIDEOIO_MSMF_ENABLE_HW_TRANSFORMS', '0')
+
+
+def open_camera(camera_index: int, width: int, height: int):
+    """
+    Opens a camera robustly. cv2_enumerate_cameras returns indexes such as 700
+    (DirectShow camera 0) or 1400 (Media Foundation camera 0); split them into
+    backend + device so OpenCV uses exactly the backend that was listed.
+    """
+    if camera_index >= 100:
+        backend, device = (camera_index // 100) * 100, camera_index % 100
+        capture = cv2.VideoCapture(device, backend)
+    else:
+        capture = cv2.VideoCapture(camera_index)
+    if capture is not None and capture.isOpened():
+        capture.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+        capture.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+        capture.set(cv2.CAP_PROP_FPS, 60)
+        capture.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # always the newest frame, less latency
+    return capture
+
+
 class LiveSwapWorker:
+    # Consecutive failed reads before the camera is closed and reopened
+    MAX_READ_FAILURES = 60
+    # Auto-rotation only changes after this many consecutive checks agree
+    ROTATION_CONFIRMATIONS = 3
+
     def __init__(self):
         self.stopped = False
         self.latest_frame = None
+        self.frame_id = 0
         self.lock = threading.Lock()
         self.camera = None
+        self.thread = None
         self.frame_processors = []
         self.source_images = []
-        
-        # Resolution Variables
+        self.status_message = None
+
+        # Resolution / camera change requests
         self.camera_index = 0
         self.change_res_flag = False
         self.new_width = 640
         self.new_height = 480
-        
+
         # Auto-Rotation Variables
         self.rotation_check_counter = 0
+        self.pending_rotation = None
+        self.pending_rotation_count = 0
+
+        self._last_error_time = 0.0
 
     def start(self, camera_index):
         self.camera_index = camera_index
-        
-        # 1. Load Processors (From your code)
+        self.new_width = modules.ui.PREVIEW_DEFAULT_WIDTH
+        self.new_height = modules.ui.PREVIEW_DEFAULT_HEIGHT
+
+        # 1. Load Processors
         self.frame_processors = get_frame_processors_modules(modules.globals.frame_processors)
-        
-        # 2. Reset Tracking (From your code)
-        if modules.globals.face_tracking:
-            for processor in self.frame_processors:
-                if hasattr(processor, 'reset_face_tracking'):
-                    processor.reset_face_tracking()
-                    
-        # 3. Load Source Images (From your code)
+
+        # 2. Reset Tracking (always: a new session must not reuse old identities)
+        for processor in self.frame_processors:
+            if hasattr(processor, 'reset_face_tracking'):
+                processor.reset_face_tracking()
+
+        # 3. Load Source Images
         if modules.globals.source_path:
-            source_image = cv2.imread(modules.globals.source_path)
+            source_image = imread_unicode(modules.globals.source_path)
             faces = get_many_faces(source_image)
             if faces:
                 self.source_images = sorted(faces, key=lambda face: face.bbox[0])[:20]
-        
-        # 4. Extract Embeddings (From your code)
+
+        # 4. Extract Embeddings
         for frame_processor in self.frame_processors:
-             if hasattr(frame_processor, 'extract_face_embedding') and self.source_images:
+            if hasattr(frame_processor, 'extract_face_embedding') and self.source_images:
                 source_embeddings = []
                 for face in self.source_images:
-                     source_embeddings.append(frame_processor.extract_face_embedding(face))
+                    source_embeddings.append(frame_processor.extract_face_embedding(face))
                 modules.globals.source_face_left_embedding = source_embeddings
 
-        threading.Thread(target=self.process_loop, daemon=True).start()
+        if not self.source_images:
+            return  # caller reports the error; no thread, no camera opened
+
+        self.thread = threading.Thread(target=self.process_loop, daemon=True)
+        self.thread.start()
 
     def set_resolution(self, width, height):
         self.new_width = width
         self.new_height = height
         self.change_res_flag = True
 
+    def set_camera(self, camera_index):
+        self.camera_index = camera_index
+        self.change_res_flag = True
+
+    def _log_error(self, message):
+        now = time.time()
+        if now - self._last_error_time > 5:  # avoid flooding the console
+            print(f'[LIVE] {message}')
+            self._last_error_time = now
+
+    def _reopen_camera(self):
+        if self.camera is not None:
+            try:
+                self.camera.release()
+            except Exception:
+                pass
+        self.camera = open_camera(self.camera_index, self.new_width, self.new_height)
+        return self.camera is not None and self.camera.isOpened()
+
+    def _check_rotation(self, frame):
+        rotation_check_faces = get_many_faces(frame)
+        new_rot = None
+        if rotation_check_faces:
+            main_face = max(rotation_check_faces, key=lambda f: (f.bbox[2]-f.bbox[0]) * (f.bbox[3]-f.bbox[1]))
+            angle = estimate_head_rotation(main_face)
+            new_rot = 0
+            if angle > 60: new_rot = -90
+            elif angle < -60: new_rot = 90
+        else:
+            faces_180 = get_many_faces(cv2.rotate(frame, cv2.ROTATE_180))
+            if faces_180:
+                new_rot = 180
+
+        if new_rot is None or new_rot == modules.globals.face_rot_range:
+            self.pending_rotation, self.pending_rotation_count = None, 0
+            return
+        # Require several consecutive agreeing checks before rotating, so a
+        # single false detection does not flip the image
+        if new_rot == self.pending_rotation:
+            self.pending_rotation_count += 1
+        else:
+            self.pending_rotation, self.pending_rotation_count = new_rot, 1
+        if self.pending_rotation_count >= self.ROTATION_CONFIRMATIONS:
+            modules.globals.face_rot_range = new_rot
+            self.pending_rotation, self.pending_rotation_count = None, 0
+
     def process_loop(self):
-        # Initial Setup
-        self.camera = cv2.VideoCapture(self.camera_index)
-        self.camera.set(cv2.CAP_PROP_FRAME_WIDTH, modules.ui.PREVIEW_DEFAULT_WIDTH)
-        self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, modules.ui.PREVIEW_DEFAULT_HEIGHT)
-        self.camera.set(cv2.CAP_PROP_FPS, 60)
+        if not self._reopen_camera():
+            self.status_message = 'No se pudo abrir la cámara. ¿La está usando otra app?'
+        read_failures = 0
 
         while not self.stopped:
-            # --- HANDLE RESOLUTION CHANGE ---
+            # --- HANDLE RESOLUTION / CAMERA CHANGE ---
             if self.change_res_flag:
-                if self.camera.isOpened(): self.camera.release()
-                self.camera = cv2.VideoCapture(self.camera_index)
-                self.camera.set(cv2.CAP_PROP_FRAME_WIDTH, self.new_width)
-                self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, self.new_height)
-                self.camera.set(cv2.CAP_PROP_FPS, 60)
                 self.change_res_flag = False
+                if self._reopen_camera():
+                    self.status_message = ''
+                read_failures = 0
 
-            if self.camera.isOpened(): self.camera.grab() # Latency hack
+            ret, current_frame = (False, None)
+            if self.camera is not None and self.camera.isOpened():
+                try:
+                    ret, current_frame = self.camera.read()
+                except Exception as e:
+                    self._log_error(f'Error leyendo la cámara: {e}')
+                    ret = False
 
-            ret, current_frame = self.camera.read()
-            if not ret:
+            if not ret or current_frame is None:
+                read_failures += 1
+                if read_failures >= self.MAX_READ_FAILURES:
+                    # Camera lost (taken by another app, Camo disconnected...): reconnect
+                    self.status_message = 'Cámara sin imagen, reconectando...'
+                    self._log_error('La cámara no envía imagen; reconectando.')
+                    if self._reopen_camera():
+                        read_failures = 0
+                    else:
+                        time.sleep(1.0)
                 time.sleep(0.01)
                 continue
+
+            if read_failures or self.status_message:
+                read_failures = 0
+                self.status_message = ''
 
             # Flip Logic
             if modules.globals.flip_x:
@@ -103,60 +205,56 @@ class LiveSwapWorker:
             if modules.globals.flip_y:
                 current_frame = cv2.flip(current_frame, 0)
 
-            # --- YOUR AUTO ROTATION LOGIC (Moved to Thread) ---
-            if modules.globals.auto_rotate_value and self.rotation_check_counter % modules.globals.rotation_check_interval == 0:
-                rotation_check_faces = get_many_faces(current_frame)
-                new_rot = 0
-                found_rotation = False
-
-                if rotation_check_faces:
-                    main_face = max(rotation_check_faces, key=lambda f: (f.bbox[2]-f.bbox[0]) * (f.bbox[3]-f.bbox[1]))
-                    angle = estimate_head_rotation(main_face)
-                    if angle > 60: new_rot = -90 
-                    elif angle < -60: new_rot = 90
-                    found_rotation = True
-                
-                if not found_rotation:
-                    frame_180 = cv2.rotate(current_frame, cv2.ROTATE_180)
-                    faces_180 = get_many_faces(frame_180)
-                    if faces_180:
-                        new_rot = 180
-                        found_rotation = True
-
-                if found_rotation:
-                    if modules.globals.face_rot_range != new_rot:
-                        modules.globals.face_rot_range = new_rot
-                        # Note: We update the logic variable here. 
-                        # Visual dropdown updates happen in the UI thread loop to avoid crashes.
-
+            # --- AUTO ROTATION (with confirmation) ---
+            if modules.globals.auto_rotate_value and self.rotation_check_counter % max(1, modules.globals.rotation_check_interval) == 0:
+                try:
+                    self._check_rotation(current_frame)
+                except Exception as e:
+                    self._log_error(f'Error en rotación automática: {e}')
             self.rotation_check_counter += 1
-            # --------------------------------------------------
 
             # --- FACE SWAP PROCESSING ---
             processed_frame = current_frame.copy()
-            if self.source_images:
-                try:
-                    for processor in self.frame_processors:
-                        processed_frame = processor.process_frame(self.source_images, processed_frame)
-                except Exception:
-                    pass
+            try:
+                for processor in self.frame_processors:
+                    processed_frame = processor.process_frame(self.source_images, processed_frame)
+            except Exception as e:
+                self._log_error(f'Error procesando el cuadro: {e}')
+                processed_frame = current_frame
 
             # Update Latest Frame
             with self.lock:
                 self.latest_frame = processed_frame
+                self.frame_id += 1
 
-        if self.camera:
-            self.camera.release()
+        if self.camera is not None:
+            try:
+                self.camera.release()
+            except Exception:
+                pass
+            self.camera = None
 
     def get_frame(self):
+        """Returns (frame_id, frame copy) so the UI only redraws new frames."""
         with self.lock:
             if self.latest_frame is not None:
-                return self.latest_frame.copy()
-            return None
+                return self.frame_id, self.latest_frame.copy()
+            return self.frame_id, None
 
-    def stop(self):
+    def stop(self, wait: bool = False):
         self.stopped = True
-        
+        # Wait for the thread to release the camera so it can be reopened
+        if wait and self.thread is not None and self.thread.is_alive() and threading.current_thread() is not self.thread:
+            self.thread.join(timeout=3)
+
+
+def stop_live_worker():
+    """Stops the running live session (if any) and frees the camera."""
+    global worker
+    if worker is not None:
+        worker.stop(wait=True)
+
+
 global camera
 camera = None
 
@@ -279,7 +377,7 @@ def create_root(start: Callable[[], None], destroy: Callable[[], None]) -> ctk.C
 
     # NOTE: All widgets are now parented to 'ui_container' instead of 'root'
 
-    info_label = ctk.CTkLabel(ui_container, text='La webcam tarda 30 segundos en iniciar con la primera detección de cara', justify='center')
+    info_label = ctk.CTkLabel(ui_container, text='La primera detección de cara puede tardar unos segundos', justify='center')
     info_label.place(relx=0, rely=0, relwidth=1)
     fps_label = ctk.CTkLabel(ui_container, text='FPS:  ', justify='center',font=("Arial", 12))
     fps_label.place(relx=0, rely=0.04, relwidth=1)
@@ -826,11 +924,17 @@ def select_camera(*args):
     camera_info = modules.globals.camera_var.get()
     
     # Extract the camera index from the selected string
-    if camera_info == "Default Camera":
+    if camera_info in ("Default Camera", "Cámara predeterminada"):
          modules.globals.camera_index = 0 # default 0
     else:
-         camera_index = int(camera_info.split('(')[-1][:-1])
+         try:
+             camera_index = int(camera_info.split('(')[-1].rstrip(')'))
+         except ValueError:
+             camera_index = 0
          modules.globals.camera_index = camera_index
+    if worker is not None and not worker.stopped:
+        worker.set_camera(modules.globals.camera_index)
+        return
     update_camera_resolution()
 
 
@@ -1264,7 +1368,7 @@ def update_preview(frame_number: int = 0) -> None:
         
         # (Your previous fix for Image/Video loading)
         if is_image(modules.globals.target_path):
-            temp_frame = cv2.imread(modules.globals.target_path)
+            temp_frame = imread_unicode(modules.globals.target_path)
             # Ensure slider is hidden for images
             if preview_slider: preview_slider.pack_forget() 
         else:
@@ -1282,7 +1386,7 @@ def update_preview(frame_number: int = 0) -> None:
         # Initialize variables for the selected face/s image. 
         source_images: List[Face] = []
         if modules.globals.source_path:
-            source_image = cv2.imread(modules.globals.source_path)
+            source_image = imread_unicode(modules.globals.source_path)
             faces = get_many_faces(source_image)
             if faces:
                 # sort faces from left to right then slice max 10
@@ -1337,12 +1441,22 @@ def update_preview(frame_number: int = 0) -> None:
         # USE PREVIEW WINDOW (The one with the toolbar)
         PREVIEW.deiconify()
 
+LIVE_SESSION_ID = 0
+
 def webcam_preview():
+    global LIVE_SESSION_ID
     if modules.globals.source_path is None:
+        update_status('Primero selecciona una cara de origen.')
         return
     
     global preview_label_cam, PREVIEW, ROOT, enhancer_switch, fps_label
     global worker # Global so update_camera_resolution can find it
+
+    # Only one live session at a time: pressing "En vivo" again used to open the
+    # same camera twice, which makes Windows cut the image (MSMF "can't grab frame")
+    stop_live_worker()
+    LIVE_SESSION_ID += 1
+    session_id = LIVE_SESSION_ID
     global target_face1_value, target_face2_value, target_face3_value, target_face4_value, target_face5_value
     global target_face6_value, target_face7_value, target_face8_value, target_face9_value, target_face10_value
 
@@ -1374,6 +1488,7 @@ def webcam_preview():
     # --- CONFIGURE DROPDOWNS (From your code - logic moved here because worker has source_images) ---
     if not worker.source_images:
         print('No se encontró ninguna cara en la imagen de origen')
+        update_status('No se encontró ninguna cara en la imagen de origen.')
         worker.stop()
         if enhancer_switch:
             enhancer_switch.configure(state="normal")
@@ -1395,14 +1510,21 @@ def webcam_preview():
 
     frame_count = 0
     start_time = time.time()
+    last_frame_id = -1
+    last_status = None
+    live_worker = worker
 
     # --- UI UPDATE LOOP ---
     def update_ui_loop():
-        nonlocal frame_count, start_time
+        nonlocal frame_count, start_time, last_frame_id, last_status
+
+        # 0. A newer live session replaced this one: stop this loop
+        if session_id != LIVE_SESSION_ID:
+            return
 
         # 1. Handle Window Close
         if PREVIEW.state() == 'withdrawn':
-            worker.stop()
+            live_worker.stop()
             if enhancer_switch:
                 enhancer_switch.configure(state="normal")
                 if previous_enhancer_state:
@@ -1410,11 +1532,18 @@ def webcam_preview():
                     update_tumbler('face_enhancer', True)
             return
 
-        # 2. Get Frame from Worker
-        frame = worker.get_frame()
+        # 2. Camera status messages from the worker (reconnecting, errors...)
+        if live_worker.status_message is not None and live_worker.status_message != last_status:
+            last_status = live_worker.status_message
+            if last_status:
+                update_status(last_status)
 
-        if frame is not None:
-            # 3. FPS Calculation
+        # 3. Get Frame from Worker (only redraw when there is a new one)
+        frame_id, frame = live_worker.get_frame()
+
+        if frame is not None and frame_id != last_frame_id:
+            last_frame_id = frame_id
+            # FPS = processed frames per second
             frame_count += 1
             current_time = time.time()
             if current_time - start_time > 1:
@@ -1443,9 +1572,9 @@ def webcam_preview():
                      modules.globals.rot_range_dropdown_preview.set(str(modules.globals.face_rot_range))
 
             # 6. Display Image
-            current_width = PREVIEW.winfo_width()
-            current_height = PREVIEW.winfo_height()
-            
+            current_width = max(PREVIEW.winfo_width(), 2)
+            current_height = max(PREVIEW.winfo_height(), 2)
+
             display_frame = fit_image_to_preview(frame, current_width, current_height)
             image_rgb = cv2.cvtColor(display_frame, cv2.COLOR_BGR2RGB)
             image_pil = Image.fromarray(image_rgb)
@@ -1453,7 +1582,10 @@ def webcam_preview():
             preview_label_cam.configure(image=ctk_img)
 
         # 7. Schedule next update
-        PREVIEW.after(10, update_ui_loop)
+        try:
+            PREVIEW.after(10, update_ui_loop)
+        except Exception:
+            live_worker.stop()  # window destroyed
 
     update_ui_loop()
 

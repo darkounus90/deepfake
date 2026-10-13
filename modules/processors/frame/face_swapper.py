@@ -13,7 +13,7 @@ from modules.face_analyser import get_one_face, get_many_faces, get_one_face_lef
 # These are special types for faces and frames (images or videos)
 from modules.typing import Face, Frame
 # These help us download models, find files, and check if something is an image or video
-from modules.utilities import conditional_download, resolve_relative_path, is_image, is_video
+from modules.utilities import conditional_download, resolve_relative_path, is_image, is_video, imread_unicode, imwrite_unicode
 from collections import deque # A special list where items are added to one end and removed from the other
 import numpy as np # This is a library for math, especially with arrays
 import time # This is for keeping track of time
@@ -55,6 +55,11 @@ second_face_id: Optional[int] = None
 source_face_embeddings: List[np.ndarray] = []
 # Identities locked with "Lock People" (slot 0 -> F1, slot 1 -> F2). Empty = not locked yet
 locked_person_embeddings: List[np.ndarray] = []
+# Last face seen for each locked slot and how many frames it has been missing.
+# Lets the swap hold for a few frames when detection blinks (motion blur, hand
+# in front), so the real face does not flash on screen.
+locked_last_seen: dict = {}
+LOCK_HOLD_FRAMES = 4
 # How the first tracked face looks
 first_face_embedding: Optional[np.ndarray] = None
 # How the second tracked face looks
@@ -94,7 +99,7 @@ def pre_start() -> bool:
         update_status('Selecciona una imagen de origen.', NAME) # Tells the user to select an image
         return False
     # Checks if there is a face in the source image
-    elif not get_one_face(cv2.imread(modules.globals.source_path)):
+    elif not get_one_face(imread_unicode(modules.globals.source_path)):
         update_status('No se detectó ninguna cara en la imagen de origen.', NAME) # Tells the user that there is no face in the source
         return False
     # Checks if the target is an image or a video
@@ -246,7 +251,25 @@ def _get_source_index(i: int, source_face: List[Face], source_face_order: List[i
     else:
         return i % len(source_face) # If we only have one source face, always use that one
 
+_last_swap_error_time = 0.0
+
 def _process_face_swap(frame: Frame, source_face: List[Face], target_face: Face, source_index: int) -> Frame:
+    """Performs face swapping on a single face. An error on one face never breaks the whole frame."""
+    global _last_swap_error_time
+    if not source_face:
+        return frame
+    source_index = max(0, min(source_index, len(source_face) - 1))
+    try:
+        return _process_face_swap_unsafe(frame, source_face, target_face, source_index)
+    except Exception as e:
+        now = time.time()
+        if now - _last_swap_error_time > 5:  # avoid flooding the console
+            print(f"[FACE_SWAPPER] Error al cambiar una cara (se omite este cuadro): {e}")
+            _last_swap_error_time = now
+        return frame
+
+
+def _process_face_swap_unsafe(frame: Frame, source_face: List[Face], target_face: Face, source_index: int) -> Frame:
     """Performs face swapping and masking on a single face."""
     # Crop the face region
     cropped_frame, crop_info = crop_face_region(frame, target_face) # Crops out the face region
@@ -738,12 +761,15 @@ def _match_locked_people(all_faces: List[Face]) -> List[Tuple[int, Face]]:
     wanted = 2 if modules.globals.both_faces else 1
     threshold = modules.globals.lock_person_threshold
     if not all_faces:
-        return []
+        return _hold_locked_faces([], set(), [])
 
     embeddings = []
     for face in all_faces:
         emb = extract_face_embedding(face)
-        embeddings.append(None if emb is None else np.array(emb, dtype=np.float32))
+        if emb is None or not np.any(emb):
+            embeddings.append(None)  # failed embedding: cannot be identified
+        else:
+            embeddings.append(np.array(emb, dtype=np.float32))
 
     # First lock
     if not locked_person_embeddings:
@@ -751,7 +777,10 @@ def _match_locked_people(all_faces: List[Face]) -> List[Tuple[int, Face]]:
         candidates = sorted(candidates, key=lambda i: _face_area(all_faces[i]), reverse=True)[:wanted]
         candidates = sorted(candidates, key=lambda i: all_faces[i].bbox[0])  # left person = slot 0
         locked_person_embeddings = [embeddings[i] for i in candidates]
-        return [(slot, all_faces[i]) for slot, i in enumerate(candidates)]
+        result = [(slot, all_faces[i]) for slot, i in enumerate(candidates)]
+        for slot, face in result:
+            locked_last_seen[slot] = (face, 0)
+        return result
 
     slots = locked_person_embeddings[:wanted]
 
@@ -793,7 +822,32 @@ def _match_locked_people(all_faces: List[Face]) -> List[Tuple[int, Face]]:
             locked_person_embeddings[slot] = 0.9 * locked_person_embeddings[slot] + 0.1 * embeddings[i]
 
     modules.globals.target_face1_score = scores.get(0, 0)
-    return [(slot, all_faces[i]) for slot, i in assignments]
+    result = [(slot, all_faces[i]) for slot, i in assignments]
+    strangers = [all_faces[i] for i in range(len(all_faces)) if i not in {i for _, i in assignments}]
+    return _hold_locked_faces(result, {slot for slot, _ in result}, strangers)
+
+
+def _hold_locked_faces(result: List[Tuple[int, Face]], found_slots: set, strangers: List[Face]) -> List[Tuple[int, Face]]:
+    """
+    Keeps swapping a locked person for a few frames after detection loses them,
+    unless someone else is now standing in that spot.
+    """
+    wanted = 2 if modules.globals.both_faces else 1
+    for slot, face in result:
+        locked_last_seen[slot] = (face, 0)
+    for slot in range(min(wanted, len(locked_person_embeddings))):
+        if slot in found_slots or slot not in locked_last_seen:
+            continue
+        last_face, missing = locked_last_seen[slot]
+        missing += 1
+        if missing > LOCK_HOLD_FRAMES:
+            locked_last_seen.pop(slot, None)
+            continue
+        locked_last_seen[slot] = (last_face, missing)
+        if any(calculate_iou(last_face.bbox, s.bbox) > 0.3 for s in strangers):
+            continue  # a different person is there now: never swap them
+        result.append((slot, last_face))
+    return result
 
 
 def _lock_source_index(slot: int, source_face: List[Face]) -> int:
@@ -1012,20 +1066,20 @@ def process_frames(source_path: str, temp_frame_paths: List[str], progress: Any 
     """
     source_face: List[Face] = [] # A list to store the source faces
     if source_path: # If we have a source image
-        source_image = cv2.imread(source_path) # Load the source image
+        source_image = imread_unicode(source_path) # Load the source image
         faces = get_many_faces(source_image) # Detect the faces in the source image
         if faces: # If there are any faces
             source_face = sorted(faces, key=lambda face: face.bbox[0])[:10] # Sort the faces from left to right and take the first 10
 
     for temp_frame_path in temp_frame_paths: # Loop through all the frames
-        temp_frame = cv2.imread(temp_frame_path) # Load the current frame
+        temp_frame = imread_unicode(temp_frame_path) # Load the current frame
         try:
             if modules.globals.flip_x: # If we should flip the frame horizontally
                 temp_frame = cv2.flip(temp_frame, 1) # Flip it
             if modules.globals.flip_y: # If we should flip the frame vertically
                 temp_frame = cv2.flip(temp_frame, 0) # Flip it
             result = process_frame(source_face, temp_frame) # Process the current frame
-            cv2.imwrite(temp_frame_path, result) # Save the processed frame
+            imwrite_unicode(temp_frame_path, result) # Save the processed frame
         except Exception as exception:
             print(exception) # If there's an error, print it
             pass
@@ -1038,11 +1092,11 @@ def process_image(source_path: str, target_path: str, output_path: str) -> None:
     """
     source_face: List[Face] = [] # A list to store the source faces
     if source_path: # If we have a source image
-        source_image = cv2.imread(source_path) # Load the source image
+        source_image = imread_unicode(source_path) # Load the source image
         faces = get_many_faces(source_image) # Detect the faces in the source image
         if faces: # If there are any faces
             source_face = sorted(faces, key=lambda face: face.bbox[0])[:10] # Sort the faces from left to right and take the first 10
-    target_frame = cv2.imread(target_path) # Load the target image
+    target_frame = imread_unicode(target_path) # Load the target image
 
     if modules.globals.flip_x: # If we should flip the frame horizontally
         target_frame = cv2.flip(target_frame, 1) # Flip it
@@ -1050,7 +1104,7 @@ def process_image(source_path: str, target_path: str, output_path: str) -> None:
         target_frame = cv2.flip(target_frame, 0) # Flip it
 
     result = process_frame(source_face, target_frame) # Process the image
-    cv2.imwrite(output_path, result) # Save the processed image
+    imwrite_unicode(output_path, result) # Save the processed image
 
 def process_video(source_path: str, temp_frame_paths: List[str]) -> None:
     """
@@ -1396,6 +1450,7 @@ def reset_face_tracking():
     """
     global locked_person_embeddings
     locked_person_embeddings = []
+    locked_last_seen.clear()
     global first_face_embedding, second_face_embedding
     global first_face_position, second_face_position
     global first_face_bbox, second_face_bbox
@@ -1557,7 +1612,10 @@ def cosine_similarity(a, b):
         # Log an error message or handle the None case appropriately
         # print("Warning: One of the embeddings is None.")
         return 0  # or handle it as needed # If either embedding doesn't exist, they are not similar
-    return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)) # Calculate the cosine similarity
+    norm = np.linalg.norm(a) * np.linalg.norm(b)
+    if not np.isfinite(norm) or norm == 0:
+        return 0  # empty/invalid embedding: never counts as a match
+    return float(np.dot(a, b) / norm) # Calculate the cosine similarity
 
 def get_best_match(embedding: np.ndarray, face_embeddings: List[np.ndarray]) -> int:
     """

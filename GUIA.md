@@ -24,7 +24,7 @@ Guía rápida para instalar y usar la app. También puedes abrirla dentro de la 
    - Al final debe mostrar `torch CUDA: True` y el nombre de tu tarjeta.
 3. Si algo falla, vuelve a ejecutar `install.bat`: salta lo que ya está hecho.
 
-> No uses `run-cuda.bat`, `run-cpu.bat` ni `setup_iRoopDeepFaceCam.bat`: son del proyecto original, usan CUDA 11.8 y no funcionan con las tarjetas serie 5000.
+> Los scripts antiguos (`run-cuda.bat`, `run-cpu.bat`, `setup_iRoopDeepFaceCam.bat`, etc.) ahora solo redirigen a `start-gpu.bat`, `start-cpu.bat` o `install.bat`.
 
 ## 3. Abrir la app
 
@@ -39,7 +39,8 @@ La consola negra que se abre junto a la app muestra los mensajes técnicos; no l
 1. **Seleccionar cara/s**: elige una foto con la cara que quieres poner. Si la foto tiene varias caras, se toman de izquierda a derecha (máximo 10).
 2. **Cámara**: elige tu cámara en la lista de abajo.
 3. Elige la resolución en el menú verde (recomendado **1280x720**).
-4. Pulsa **En vivo**. La primera detección puede tardar unos 30 segundos.
+4. Pulsa **En vivo**. La primera detección puede tardar unos segundos. Si vuelves a pulsar **En vivo**, la sesión anterior se cierra sola.
+5. Puedes cambiar de cámara o de resolución con la sesión abierta.
 
 ### Con una imagen o un video
 1. **Seleccionar cara/s**: la cara que quieres poner.
@@ -95,7 +96,10 @@ Abriste un script viejo. Ejecuta `install.bat` y usa `start-gpu.bat`.
 Comprueba que existe `models\inswapper_128.onnx`. Si no está, ejecuta `install.bat`. Si sigue igual, prueba con `start-cpu.bat`: si en CPU sale bien, el problema es la GPU.
 
 **`can't grab frame` / la cámara se congela**
-Otra app está usando la cámara (OBS, navegador, Discord) o se cortó Camo con el celular. Cierra las otras apps, revisa Camo y abre la app de nuevo pulsando **En vivo** una sola vez.
+Otra app está usando la cámara (OBS, navegador, Discord) o se cortó Camo con el celular. La app intenta **reconectar sola** y lo indica abajo («Cámara sin imagen, reconectando...»). Cierra las otras apps o revisa Camo y se recupera sin reiniciar.
+
+**La imagen aparece girada de repente**
+Desactiva **Auto** junto a *Rotación* (viene apagado por defecto). Solo es útil si la cámara está de lado o al revés.
 
 **No reconoce mi cara con *Bloquear personas***
 Ponte de frente con buena luz y pulsa **T** para volver a bloquear.

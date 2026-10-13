@@ -28,7 +28,7 @@ import modules.globals
 import modules.metadata
 import modules.ui as ui
 from modules.processors.frame.core import get_frame_processors_modules
-from modules.utilities import has_image_extension, is_image, is_video, detect_fps, create_video, extract_frames, get_temp_frame_paths, restore_audio, create_temp, move_temp, clean_temp, normalize_output_path
+from modules.utilities import has_image_extension, is_image, is_video, detect_fps, create_video, extract_frames, get_temp_frame_paths, restore_audio, create_temp, move_temp, clean_temp, normalize_output_path, imread_unicode, imwrite_unicode
 from modules.face_analyser import initialize_face_analyser, get_many_faces
 # Import rotation estimator
 from modules.processors.frame.face_swapper import estimate_head_rotation
@@ -171,9 +171,9 @@ def limit_resources() -> None:
         if platform.system().lower() == 'darwin':
             memory = modules.globals.max_memory * 1024 ** 6
         if platform.system().lower() == 'windows':
-            import ctypes
-            kernel32 = ctypes.windll.kernel32
-            kernel32.SetProcessWorkingSetSize(-1, ctypes.c_size_t(memory), ctypes.c_size_t(memory))
+            # Not applied on Windows: forcing the working set (min = max = 16 GB)
+            # makes Windows page the process and causes stutters.
+            pass
         else:
             import resource
             resource.setrlimit(resource.RLIMIT_DATA, (memory, memory))
@@ -253,7 +253,7 @@ def start() -> None:
     # 2. Prepare Source Faces
     source_images = []
     if modules.globals.source_path:
-        source_image = cv2.imread(modules.globals.source_path)
+        source_image = imread_unicode(modules.globals.source_path)
         faces = get_many_faces(source_image)
         if faces:
             source_images = sorted(faces, key=lambda face: face.bbox[0])[:20]
@@ -265,10 +265,10 @@ def start() -> None:
         if modules.globals.nsfw_filter and ui.check_and_ignore_nsfw(modules.globals.target_path, destroy):
             return
         try:
-            target_frame = cv2.imread(modules.globals.target_path)
+            target_frame = imread_unicode(modules.globals.target_path)
             for frame_processor in get_frame_processors_modules(modules.globals.frame_processors):
                 target_frame = frame_processor.process_frame(source_images, target_frame)
-            cv2.imwrite(modules.globals.output_path, target_frame)
+            imwrite_unicode(modules.globals.output_path, target_frame)
             release_resources()
         except Exception as e:
              print(f"Error processing image: {e}")
@@ -446,6 +446,11 @@ def start() -> None:
 
 
 def destroy(to_quit=True) -> None:
+    # Free the webcam before quitting so it is not left locked
+    try:
+        ui.stop_live_worker()
+    except Exception:
+        pass
     if modules.globals.target_path:
         clean_temp(modules.globals.target_path)
     if to_quit: quit()
