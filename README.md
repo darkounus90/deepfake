@@ -1,3 +1,5 @@
+> **Guía en español:** [GUIA.md](GUIA.md) — instalación, uso, bloqueo de personas y solución de problemas.
+
 # [Read the Developer Guide - iRoopDeepFaceCam: A Deep Dive into Face Swapping](https://github.com/iVideoGameBoss/iRoopDeepFaceCam/wiki)
 
 # iRoopDeepFaceCam 

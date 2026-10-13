@@ -283,6 +283,10 @@ def create_root(start: Callable[[], None], destroy: Callable[[], None]) -> ctk.C
     info_label.place(relx=0, rely=0, relwidth=1)
     fps_label = ctk.CTkLabel(ui_container, text='FPS:  ', justify='center',font=("Arial", 12))
     fps_label.place(relx=0, rely=0.04, relwidth=1)
+
+    guide_button = ctk.CTkButton(ui_container, text='Guía (F1)', cursor='hand2',
+                                 command=lambda: show_guide(), font=("Arial", 12))
+    guide_button.place(relx=0.02, rely=0.035, relwidth=0.16, relheight=0.03)
     
     def update_det_freq(value):
         modules.globals.detection_frequency = int(value)
@@ -1049,7 +1053,7 @@ def create_preview(parent: ctk.CTkToplevel) -> ctk.CTkToplevel:
     face_forehead_index_dropdown_preview.pack(side='left', padx=5, pady=5)
 
     # Hotkeys label
-    hotkey_text = "Atajos: Seguimiento auto (A) | Reiniciar seguimiento (T) | Bloquear personas (L) | Máscara de boca (M) | Máscara cara 1-10 (1-0)"
+    hotkey_text = "Atajos: Seguimiento auto (A) | Reiniciar seguimiento (T) | Bloquear personas (L) | Máscara de boca (M) | Máscara cara 1-10 (1-0) | Guía (F1)"
     hotkey_index = ctk.CTkLabel(switch_frame, text=hotkey_text, font=("Arial", 12), text_color="gray")
     hotkey_index.pack(side='top', fill='x', padx=10, pady=(0, 5), anchor='w')
 
@@ -1677,7 +1681,38 @@ def face_rot_size(*args):
 
 # --- HOTKEY HANDLERS ---
 
+GUIDE_WINDOW = None
+
+def _load_guide_text() -> str:
+    guide_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'GUIA.md')
+    try:
+        with open(guide_path, encoding='utf-8') as f:
+            text = f.read()
+    except OSError:
+        return 'No se encontró GUIA.md en la carpeta de la app.'
+    # Light clean-up of Markdown so it reads well as plain text
+    return text.replace('**', '').replace('`', '').replace('> ', '')
+
+def show_guide() -> None:
+    """Opens the usage guide (GUIA.md) in its own window."""
+    global GUIDE_WINDOW
+    if GUIDE_WINDOW is not None and GUIDE_WINDOW.winfo_exists():
+        GUIDE_WINDOW.deiconify()
+        GUIDE_WINDOW.lift()
+        GUIDE_WINDOW.focus_force()
+        return
+    GUIDE_WINDOW = ctk.CTkToplevel()
+    GUIDE_WINDOW.title('Guía de uso')
+    GUIDE_WINDOW.geometry('720x760')
+    textbox = ctk.CTkTextbox(GUIDE_WINDOW, wrap='word', font=("Arial", 14))
+    textbox.pack(fill='both', expand=True, padx=10, pady=10)
+    textbox.insert('1.0', _load_guide_text())
+    textbox.configure(state='disabled')
+    GUIDE_WINDOW.after(100, GUIDE_WINDOW.lift)
+
 def setup_hotkeys(window):
+    # F1 - usage guide
+    window.bind('<F1>', lambda e: show_guide())
     # a - auto face tracking
     window.bind('a', lambda e: toggle_face_tracking_hotkey())
     # t - reset tracking
