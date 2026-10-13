@@ -958,6 +958,18 @@ def create_preview(parent: ctk.CTkToplevel) -> ctk.CTkToplevel:
         modules.globals.rot_range_dropdown_preview.set(size)
         refresh_preview() # <--- REFRESH ADDED
 
+    # --- LOCK 1 PERSON SWITCH ---
+    modules.globals.lock_person_var = ctk.BooleanVar(value=modules.globals.lock_person)
+
+    def toggle_lock_person_preview():
+        set_lock_person(modules.globals.lock_person_var.get())
+
+    lock_person_switch = ctk.CTkSwitch(button_row, text='Lock 1 Person',
+                                       variable=modules.globals.lock_person_var,
+                                       command=toggle_lock_person_preview,
+                                       width=50)
+    lock_person_switch.pack(side='left', padx=5, pady=5)
+
     face_rot_label = ctk.CTkLabel(button_row, text=" | Rot Range ", font=("Arial", 16))
     face_rot_label.pack(side='left', padx=5, pady=5)
 
@@ -1037,7 +1049,7 @@ def create_preview(parent: ctk.CTkToplevel) -> ctk.CTkToplevel:
     face_forehead_index_dropdown_preview.pack(side='left', padx=5, pady=5)
 
     # Hotkeys label
-    hotkey_text = "Hotkeys: Auto Track (A) | Reset Track (T) | Mouth Mask (M) | Mask Face 1-10 (1-0)"
+    hotkey_text = "Hotkeys: Auto Track (A) | Reset Track (T) | Lock 1 Person (L) | Mouth Mask (M) | Mask Face 1-10 (1-0)"
     hotkey_index = ctk.CTkLabel(switch_frame, text=hotkey_text, font=("Arial", 12), text_color="gray")
     hotkey_index.pack(side='top', fill='x', padx=10, pady=(0, 5), anchor='w')
 
@@ -1670,6 +1682,8 @@ def setup_hotkeys(window):
     window.bind('a', lambda e: toggle_face_tracking_hotkey())
     # t - reset tracking
     window.bind('t', lambda e: reset_face_tracking_hotkey())
+    # l - lock swap to one person
+    window.bind('l', lambda e: toggle_lock_person_hotkey())
     # m - mouth mask global
     window.bind('m', lambda e: toggle_mouth_mask_global_hotkey())
     
@@ -1694,6 +1708,17 @@ def toggle_face_tracking_hotkey():
         face_tracking(None) # Update UI state
         update_status(f"Auto Face Tracking: {'On' if val else 'Off'}")
         refresh_preview()
+
+def set_lock_person(value: bool):
+    modules.globals.lock_person = value
+    if modules.globals.lock_person_var is not None and modules.globals.lock_person_var.get() != value:
+        modules.globals.lock_person_var.set(value)
+    # Forget any previous identity so the lock picks the person in view now
+    clear_face_tracking_data()
+    update_status(f"Lock 1 Person: {'On' if value else 'Off'}")
+
+def toggle_lock_person_hotkey():
+    set_lock_person(not modules.globals.lock_person)
 
 def reset_face_tracking_hotkey():
     clear_face_tracking_data()

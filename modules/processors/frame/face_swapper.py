@@ -53,6 +53,8 @@ first_face_id: Optional[int] = None
 second_face_id: Optional[int] = None
 # A list of how the source faces look (their "embeddings")
 source_face_embeddings: List[np.ndarray] = []
+# Identity locked with "Lock 1 Person" (None = not locked yet)
+locked_person_embedding: Optional[np.ndarray] = None
 # How the first tracked face looks
 first_face_embedding: Optional[np.ndarray] = None
 # How the second tracked face looks
@@ -715,6 +717,41 @@ def _process_face_tracking_many(
         else:
             return frame # If we have max faces then do not update the faces
 
+def _match_locked_person(all_faces: List[Face]) -> Optional[Face]:
+    """
+    Returns the face that belongs to the locked person, or None.
+    The first time it runs it locks onto the largest face in view (the person
+    closest to the camera). After that, faces whose identity does not match
+    are ignored, so a second person entering the scene is never swapped.
+    """
+    global locked_person_embedding
+    if not all_faces:
+        return None
+
+    if locked_person_embedding is None:
+        largest = max(all_faces, key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]))
+        embedding = extract_face_embedding(largest)
+        if embedding is None:
+            return None
+        locked_person_embedding = np.array(embedding, dtype=np.float32)
+        return largest
+
+    best_face, best_score = None, -1.0
+    for face in all_faces:
+        score = cosine_similarity(locked_person_embedding, extract_face_embedding(face))
+        if score > best_score:
+            best_face, best_score = face, score
+
+    modules.globals.target_face1_score = best_score
+    if best_score < modules.globals.lock_person_threshold:
+        return None
+
+    # Adapt slowly to lighting/pose changes, only on confident matches
+    if best_score > 0.6:
+        locked_person_embedding = 0.9 * locked_person_embedding + 0.1 * np.array(extract_face_embedding(best_face), dtype=np.float32)
+    return best_face
+
+
 def process_frame(source_face: List[Face], temp_frame: Frame) -> Frame:
     """Main function to process a single frame."""
     global first_face_embedding, second_face_embedding, first_face_position, second_face_position
@@ -741,110 +778,123 @@ def process_frame(source_face: List[Face], temp_frame: Frame) -> Frame:
         all_faces = cached_detected_faces
     # ----------------------------------------
 
-    # Handle face tracking reset logic
-    if modules.globals.face_tracking: # If we're using face tracking
-        if modules.globals.detect_face_right_value: # If the "detect right face" button was pressed
-            reset_face_tracking() # Reset the face tracking
-            modules.globals.detect_face_right_value = False # Set the button to false
-        if modules.globals.flip_faces_value: # If the "flip faces" button was pressed
-            reset_face_tracking() # Reset the face tracking
-            modules.globals.flip_faces_value = False # Set the button to false
-    elif modules.globals.face_tracking_value: # If the "turn on face tracking" button was pressed
-        reset_face_tracking() # Reset the face tracking
-        modules.globals.face_tracking_value = False # Set the button to false
-
-     # Select which faces to process
-    if modules.globals.face_tracking and modules.globals.both_faces:
-         # If tracking both, we MUST look at ALL faces to find the tracks, 
-         # regardless of position.
-         if modules.globals.detect_face_right:
-             target_faces = sorted(all_faces, key=lambda face: -face.bbox[0])
-         else:
-             target_faces = sorted(all_faces, key=lambda face: face.bbox[0])
-    else:
-        # Standard Selection (Strict Limits)
-        target_faces = _select_target_faces(all_faces)
-        target_faces = _limit_target_faces(target_faces)
-
-    # Pre-compute mouth masks if needed
-    # Note: _compute_mouth_masks logic handles variable length lists safely
-    mouth_masks, face_masks = _compute_mouth_masks(target_faces, temp_frame)
-
-    # Determine source face order
-    active_source_index = 1 if modules.globals.flip_faces else 0 # If we should flip the source faces
-    source_face_order = [1, 0] if modules.globals.flip_faces else [0, 1] # If we should flip the source faces
-
-    if modules.globals.many_faces: # If we should swap many faces
-         if modules.globals.face_tracking: # If we are tracking faces
-            for i, target_face in enumerate(target_faces): # Loop through all the faces
-                if modules.globals.face_index_range != -1:
-                    source_index= modules.globals.face_index_range
-                else: 
-                    source_index = i % len(source_face) # Get the index of the source face to use
-                temp_frame = _process_face_tracking_many(temp_frame, source_face, target_face, source_index, source_face_order )  # Track many faces
-         else: # If we are not tracking faces
-            for i, target_face in enumerate(target_faces): # Loop through all the faces
-                if modules.globals.face_index_range != -1:
-                    source_index= modules.globals.face_index_range
-                else: 
-                    source_index = i % len(source_face)  # Get the index of the source face to use
-                temp_frame = _process_face_swap(temp_frame, source_face, target_face, source_index) # Swap the face
-    else:
-        # Determine loop range
-        if modules.globals.face_tracking and modules.globals.both_faces:
-             # Loop over ALL candidates to find the tracks
-             loop_range = len(target_faces)
+    if modules.globals.lock_person:
+        # Only the locked person is swapped; everyone else is left untouched
+        locked_face = _match_locked_person(all_faces)
+        target_faces = [locked_face] if locked_face is not None else []
+        mouth_masks, face_masks = _compute_mouth_masks(target_faces, temp_frame)
+        if modules.globals.face_index_range != -1:
+            lock_source_index = modules.globals.face_index_range
         else:
-             # Standard limit
-             faces_to_process = 2 if modules.globals.both_faces and len(source_face) > 1 else 1 
-             loop_range = min(faces_to_process, len(target_faces))
+            lock_source_index = 1 if modules.globals.flip_faces else 0
+        lock_source_index = max(0, min(lock_source_index, len(source_face) - 1))
+        for locked_target in target_faces:
+            temp_frame = _process_face_swap(temp_frame, source_face, locked_target, lock_source_index)
+    else:
+        # Handle face tracking reset logic
+        if modules.globals.face_tracking: # If we're using face tracking
+            if modules.globals.detect_face_right_value: # If the "detect right face" button was pressed
+                reset_face_tracking() # Reset the face tracking
+                modules.globals.detect_face_right_value = False # Set the button to false
+            if modules.globals.flip_faces_value: # If the "flip faces" button was pressed
+                reset_face_tracking() # Reset the face tracking
+                modules.globals.flip_faces_value = False # Set the button to false
+        elif modules.globals.face_tracking_value: # If the "turn on face tracking" button was pressed
+            reset_face_tracking() # Reset the face tracking
+            modules.globals.face_tracking_value = False # Set the button to false
 
-        for i in range(loop_range):
-            if modules.globals.face_index_range != -1:
-                source_index= modules.globals.face_index_range
-            else: 
-                source_index = _get_source_index(i, source_face, source_face_order) # Get the index of the source face to use
-            if modules.globals.face_tracking: # If we're tracking faces
-                if modules.globals.both_faces: # If we're tracking two faces
-                   temp_frame = _process_face_tracking_both(
-                        temp_frame, source_face, target_faces[i], source_index, source_face_order # Track both faces
-                    )
-                else:
+         # Select which faces to process
+        if modules.globals.face_tracking and modules.globals.both_faces:
+             # If tracking both, we MUST look at ALL faces to find the tracks, 
+             # regardless of position.
+             if modules.globals.detect_face_right:
+                 target_faces = sorted(all_faces, key=lambda face: -face.bbox[0])
+             else:
+                 target_faces = sorted(all_faces, key=lambda face: face.bbox[0])
+        else:
+            # Standard Selection (Strict Limits)
+            target_faces = _select_target_faces(all_faces)
+            target_faces = _limit_target_faces(target_faces)
+
+        # Pre-compute mouth masks if needed
+        # Note: _compute_mouth_masks logic handles variable length lists safely
+        mouth_masks, face_masks = _compute_mouth_masks(target_faces, temp_frame)
+
+        # Determine source face order
+        active_source_index = 1 if modules.globals.flip_faces else 0 # If we should flip the source faces
+        source_face_order = [1, 0] if modules.globals.flip_faces else [0, 1] # If we should flip the source faces
+
+        if modules.globals.many_faces: # If we should swap many faces
+             if modules.globals.face_tracking: # If we are tracking faces
+                for i, target_face in enumerate(target_faces): # Loop through all the faces
                     if modules.globals.face_index_range != -1:
-                        active_source_index= modules.globals.face_index_range
+                        source_index= modules.globals.face_index_range
+                    else: 
+                        source_index = i % len(source_face) # Get the index of the source face to use
+                    temp_frame = _process_face_tracking_many(temp_frame, source_face, target_face, source_index, source_face_order )  # Track many faces
+             else: # If we are not tracking faces
+                for i, target_face in enumerate(target_faces): # Loop through all the faces
+                    if modules.globals.face_index_range != -1:
+                        source_index= modules.globals.face_index_range
+                    else: 
+                        source_index = i % len(source_face)  # Get the index of the source face to use
+                    temp_frame = _process_face_swap(temp_frame, source_face, target_face, source_index) # Swap the face
+        else:
+            # Determine loop range
+            if modules.globals.face_tracking and modules.globals.both_faces:
+                 # Loop over ALL candidates to find the tracks
+                 loop_range = len(target_faces)
+            else:
+                 # Standard limit
+                 faces_to_process = 2 if modules.globals.both_faces and len(source_face) > 1 else 1 
+                 loop_range = min(faces_to_process, len(target_faces))
 
-                    temp_frame = _process_face_tracking_single(
-                        temp_frame, source_face, target_faces[i], active_source_index # Track one face
-                    )
-
-            else: # If we're not tracking faces
+            for i in range(loop_range):
                 if modules.globals.face_index_range != -1:
                     source_index= modules.globals.face_index_range
-                if modules.globals.both_faces:
-                    # Resolve explicit selections
-                    selection_1 = modules.globals.face_index_range
-                    if selection_1 == -1: selection_1 = 0
-                    
-                    selection_2 = 0
-                    if hasattr(modules.globals, 'face2_index_range'):
-                        selection_2 = modules.globals.face2_index_range
-                    
-                    final_idx = 0
-                    
-                    if i == 0: # Left Target
-                        if modules.globals.flip_faces:
-                            final_idx = selection_2 # Flip: Get F2's selection
-                        else:
-                            final_idx = selection_1 # Normal: Get F1's selection
-                    elif i == 1: # Right Target
-                        if modules.globals.flip_faces:
-                            final_idx = selection_1 # Flip: Get F1's selection
-                        else:
-                            final_idx = selection_2 # Normal: Get F2's selection
+                else: 
+                    source_index = _get_source_index(i, source_face, source_face_order) # Get the index of the source face to use
+                if modules.globals.face_tracking: # If we're tracking faces
+                    if modules.globals.both_faces: # If we're tracking two faces
+                       temp_frame = _process_face_tracking_both(
+                            temp_frame, source_face, target_faces[i], source_index, source_face_order # Track both faces
+                        )
+                    else:
+                        if modules.globals.face_index_range != -1:
+                            active_source_index= modules.globals.face_index_range
 
-                    temp_frame = _process_face_swap(temp_frame, source_face, target_faces[i], final_idx)
-                else:
-                    temp_frame = _process_face_swap(temp_frame, source_face, target_faces[i], source_index) # Swap the faces without
+                        temp_frame = _process_face_tracking_single(
+                            temp_frame, source_face, target_faces[i], active_source_index # Track one face
+                        )
+
+                else: # If we're not tracking faces
+                    if modules.globals.face_index_range != -1:
+                        source_index= modules.globals.face_index_range
+                    if modules.globals.both_faces:
+                        # Resolve explicit selections
+                        selection_1 = modules.globals.face_index_range
+                        if selection_1 == -1: selection_1 = 0
+                    
+                        selection_2 = 0
+                        if hasattr(modules.globals, 'face2_index_range'):
+                            selection_2 = modules.globals.face2_index_range
+                    
+                        final_idx = 0
+                    
+                        if i == 0: # Left Target
+                            if modules.globals.flip_faces:
+                                final_idx = selection_2 # Flip: Get F2's selection
+                            else:
+                                final_idx = selection_1 # Normal: Get F1's selection
+                        elif i == 1: # Right Target
+                            if modules.globals.flip_faces:
+                                final_idx = selection_1 # Flip: Get F1's selection
+                            else:
+                                final_idx = selection_2 # Normal: Get F2's selection
+
+                        temp_frame = _process_face_swap(temp_frame, source_face, target_faces[i], final_idx)
+                    else:
+                        temp_frame = _process_face_swap(temp_frame, source_face, target_faces[i], source_index) # Swap the faces without
     # Apply mouth masks
     temp_frame = _apply_mouth_masks(temp_frame, target_faces, mouth_masks, face_masks)
 
@@ -1293,6 +1343,8 @@ def reset_face_tracking():
     """
     Resets all face tracking variables, including multi-face tracking data.
     """
+    global locked_person_embedding
+    locked_person_embedding = None
     global first_face_embedding, second_face_embedding
     global first_face_position, second_face_position
     global first_face_bbox, second_face_bbox
