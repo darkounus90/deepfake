@@ -958,13 +958,13 @@ def create_preview(parent: ctk.CTkToplevel) -> ctk.CTkToplevel:
         modules.globals.rot_range_dropdown_preview.set(size)
         refresh_preview() # <--- REFRESH ADDED
 
-    # --- LOCK 1 PERSON SWITCH ---
+    # --- LOCK PEOPLE SWITCH (1 person, or 2 with 'Use 1st 2 Faces') ---
     modules.globals.lock_person_var = ctk.BooleanVar(value=modules.globals.lock_person)
 
     def toggle_lock_person_preview():
         set_lock_person(modules.globals.lock_person_var.get())
 
-    lock_person_switch = ctk.CTkSwitch(button_row, text='Lock 1 Person',
+    lock_person_switch = ctk.CTkSwitch(button_row, text='Lock People',
                                        variable=modules.globals.lock_person_var,
                                        command=toggle_lock_person_preview,
                                        width=50)
@@ -1049,7 +1049,7 @@ def create_preview(parent: ctk.CTkToplevel) -> ctk.CTkToplevel:
     face_forehead_index_dropdown_preview.pack(side='left', padx=5, pady=5)
 
     # Hotkeys label
-    hotkey_text = "Hotkeys: Auto Track (A) | Reset Track (T) | Lock 1 Person (L) | Mouth Mask (M) | Mask Face 1-10 (1-0)"
+    hotkey_text = "Hotkeys: Auto Track (A) | Reset Track (T) | Lock People (L) | Mouth Mask (M) | Mask Face 1-10 (1-0)"
     hotkey_index = ctk.CTkLabel(switch_frame, text=hotkey_text, font=("Arial", 12), text_color="gray")
     hotkey_index.pack(side='top', fill='x', padx=10, pady=(0, 5), anchor='w')
 
@@ -1715,7 +1715,8 @@ def set_lock_person(value: bool):
         modules.globals.lock_person_var.set(value)
     # Forget any previous identity so the lock picks the person in view now
     clear_face_tracking_data()
-    update_status(f"Lock 1 Person: {'On' if value else 'Off'}")
+    people = 2 if modules.globals.both_faces else 1
+    update_status(f"Lock People: {'On (' + str(people) + ')' if value else 'Off'}")
 
 def toggle_lock_person_hotkey():
     set_lock_person(not modules.globals.lock_person)

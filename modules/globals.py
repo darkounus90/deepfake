@@ -103,8 +103,8 @@ detection_frequency = 1 # Default to 3 (Balanced speed/accuracy)
 
 mask_target_option = "Both" # Add this line
 mouth_mask_enabled_faces = [True] * 10 # Initialize 10 faces to True
-# Lock the swap to a single person: once locked, only the face that matches
-# the locked identity is swapped; any other face entering the scene is left as is.
+# Lock People: lock the swap to 1 person (or 2 with 'Use 1st 2 Faces') by identity.
+# Only faces matching a locked identity are swapped; anyone else is left as is.
 lock_person = False
 lock_person_threshold = 0.40  # cosine similarity needed to count as the locked person
 lock_person_var = None

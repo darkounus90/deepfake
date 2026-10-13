@@ -53,8 +53,8 @@ first_face_id: Optional[int] = None
 second_face_id: Optional[int] = None
 # A list of how the source faces look (their "embeddings")
 source_face_embeddings: List[np.ndarray] = []
-# Identity locked with "Lock 1 Person" (None = not locked yet)
-locked_person_embedding: Optional[np.ndarray] = None
+# Identities locked with "Lock People" (slot 0 -> F1, slot 1 -> F2). Empty = not locked yet
+locked_person_embeddings: List[np.ndarray] = []
 # How the first tracked face looks
 first_face_embedding: Optional[np.ndarray] = None
 # How the second tracked face looks
@@ -717,39 +717,95 @@ def _process_face_tracking_many(
         else:
             return frame # If we have max faces then do not update the faces
 
-def _match_locked_person(all_faces: List[Face]) -> Optional[Face]:
+def _face_area(face: Face) -> float:
+    return float((face.bbox[2] - face.bbox[0]) * (face.bbox[3] - face.bbox[1]))
+
+
+def _match_locked_people(all_faces: List[Face]) -> List[Tuple[int, Face]]:
     """
-    Returns the face that belongs to the locked person, or None.
-    The first time it runs it locks onto the largest face in view (the person
-    closest to the camera). After that, faces whose identity does not match
-    are ignored, so a second person entering the scene is never swapped.
+    Identity lock for 1 or 2 people (2 when "Use 1st 2 Faces" is on).
+    Returns (slot, face) pairs: slot 0 gets the F1 source face, slot 1 gets F2.
+
+    - On the first frame it locks the largest face(s) in view; with two people,
+      the one on the left becomes slot 0.
+    - Afterwards every face is compared with the stored identities, not with
+      its position, so the two people can cross or swap sides without their
+      faces being exchanged. Faces that match nobody are never swapped.
+    - In 2-person mode, if only one person was visible when locking, the next
+      new person who appears is locked as the second one.
     """
-    global locked_person_embedding
+    global locked_person_embeddings
+    wanted = 2 if modules.globals.both_faces else 1
+    threshold = modules.globals.lock_person_threshold
     if not all_faces:
-        return None
+        return []
 
-    if locked_person_embedding is None:
-        largest = max(all_faces, key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]))
-        embedding = extract_face_embedding(largest)
-        if embedding is None:
-            return None
-        locked_person_embedding = np.array(embedding, dtype=np.float32)
-        return largest
-
-    best_face, best_score = None, -1.0
+    embeddings = []
     for face in all_faces:
-        score = cosine_similarity(locked_person_embedding, extract_face_embedding(face))
-        if score > best_score:
-            best_face, best_score = face, score
+        emb = extract_face_embedding(face)
+        embeddings.append(None if emb is None else np.array(emb, dtype=np.float32))
 
-    modules.globals.target_face1_score = best_score
-    if best_score < modules.globals.lock_person_threshold:
-        return None
+    # First lock
+    if not locked_person_embeddings:
+        candidates = [i for i in range(len(all_faces)) if embeddings[i] is not None]
+        candidates = sorted(candidates, key=lambda i: _face_area(all_faces[i]), reverse=True)[:wanted]
+        candidates = sorted(candidates, key=lambda i: all_faces[i].bbox[0])  # left person = slot 0
+        locked_person_embeddings = [embeddings[i] for i in candidates]
+        return [(slot, all_faces[i]) for slot, i in enumerate(candidates)]
 
-    # Adapt slowly to lighting/pose changes, only on confident matches
-    if best_score > 0.6:
-        locked_person_embedding = 0.9 * locked_person_embedding + 0.1 * np.array(extract_face_embedding(best_face), dtype=np.float32)
-    return best_face
+    slots = locked_person_embeddings[:wanted]
+
+    # Score every (slot, face) pair and assign greedily, best match first,
+    # so one face can never take two identities and vice versa
+    pairs = []
+    for slot, slot_emb in enumerate(slots):
+        for i, emb in enumerate(embeddings):
+            if emb is not None:
+                score = cosine_similarity(slot_emb, emb)
+                if score >= threshold:
+                    pairs.append((score, slot, i))
+    pairs.sort(reverse=True)
+
+    assignments, used_slots, used_faces, scores = [], set(), set(), {}
+    for score, slot, i in pairs:
+        if slot in used_slots or i in used_faces:
+            continue
+        used_slots.add(slot)
+        used_faces.add(i)
+        scores[slot] = score
+        assignments.append((slot, i))
+
+    # 2-person mode with only one identity so far: lock the largest new person
+    if len(locked_person_embeddings) < wanted:
+        strangers = [
+            i for i in range(len(all_faces))
+            if i not in used_faces and embeddings[i] is not None
+            and all(cosine_similarity(e, embeddings[i]) < threshold for e in locked_person_embeddings)
+        ]
+        if strangers:
+            newcomer = max(strangers, key=lambda i: _face_area(all_faces[i]))
+            locked_person_embeddings.append(embeddings[newcomer])
+            assignments.append((len(locked_person_embeddings) - 1, newcomer))
+
+    # Adapt slowly to lighting/pose, only on confident matches
+    for slot, i in assignments:
+        if scores.get(slot, 0) > 0.6:
+            locked_person_embeddings[slot] = 0.9 * locked_person_embeddings[slot] + 0.1 * embeddings[i]
+
+    modules.globals.target_face1_score = scores.get(0, 0)
+    return [(slot, all_faces[i]) for slot, i in assignments]
+
+
+def _lock_source_index(slot: int, source_face: List[Face]) -> int:
+    """Source face for a locked slot: F1 for slot 0, F2 for slot 1 (Flip swaps them)."""
+    f1 = modules.globals.face_index_range
+    if f1 == -1:
+        indices = [0, 1]  # automatic: 1st source face -> person 1, 2nd -> person 2
+    else:
+        indices = [f1, getattr(modules.globals, 'face2_index_range', 0)]
+    if modules.globals.flip_faces:
+        indices.reverse()
+    return max(0, min(indices[slot], len(source_face) - 1))
 
 
 def process_frame(source_face: List[Face], temp_frame: Frame) -> Frame:
@@ -779,17 +835,12 @@ def process_frame(source_face: List[Face], temp_frame: Frame) -> Frame:
     # ----------------------------------------
 
     if modules.globals.lock_person:
-        # Only the locked person is swapped; everyone else is left untouched
-        locked_face = _match_locked_person(all_faces)
-        target_faces = [locked_face] if locked_face is not None else []
+        # Only the locked people are swapped; everyone else is left untouched
+        locked = _match_locked_people(all_faces)
+        target_faces = [face for _, face in locked]
         mouth_masks, face_masks = _compute_mouth_masks(target_faces, temp_frame)
-        if modules.globals.face_index_range != -1:
-            lock_source_index = modules.globals.face_index_range
-        else:
-            lock_source_index = 1 if modules.globals.flip_faces else 0
-        lock_source_index = max(0, min(lock_source_index, len(source_face) - 1))
-        for locked_target in target_faces:
-            temp_frame = _process_face_swap(temp_frame, source_face, locked_target, lock_source_index)
+        for slot, locked_target in locked:
+            temp_frame = _process_face_swap(temp_frame, source_face, locked_target, _lock_source_index(slot, source_face))
     else:
         # Handle face tracking reset logic
         if modules.globals.face_tracking: # If we're using face tracking
@@ -1343,8 +1394,8 @@ def reset_face_tracking():
     """
     Resets all face tracking variables, including multi-face tracking data.
     """
-    global locked_person_embedding
-    locked_person_embedding = None
+    global locked_person_embeddings
+    locked_person_embeddings = []
     global first_face_embedding, second_face_embedding
     global first_face_position, second_face_position
     global first_face_bbox, second_face_bbox
