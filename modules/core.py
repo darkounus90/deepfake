@@ -186,10 +186,10 @@ def release_resources() -> None:
 
 def pre_check() -> bool:
     if sys.version_info < (3, 9):
-        update_status('Python version is not supported - please upgrade to 3.9 or higher.')
+        update_status('Versión de Python no compatible: actualiza a 3.9 o superior.')
         return False
     if not shutil.which('ffmpeg'):
-        update_status('ffmpeg is not installed.')
+        update_status('ffmpeg no está instalado.')
         return False
     return True
 
@@ -258,7 +258,7 @@ def start() -> None:
         if faces:
             source_images = sorted(faces, key=lambda face: face.bbox[0])[:20]
 
-    update_status('Processing...')
+    update_status('Procesando...')
     
     # --- IMAGE PROCESSING ---
     if has_image_extension(modules.globals.target_path):
@@ -274,9 +274,9 @@ def start() -> None:
              print(f"Error processing image: {e}")
         
         if is_image(modules.globals.output_path):
-            update_status('Processing to image succeed!')
+            update_status('¡Imagen procesada correctamente!')
         else:
-            update_status('Processing to image failed!')
+            update_status('¡Falló el procesamiento de la imagen!')
         return
 
     # --- VIDEO PROCESSING (FAST STREAMING) ---
@@ -311,7 +311,7 @@ def start() -> None:
     processors = get_frame_processors_modules(modules.globals.frame_processors)
     
     # 3. Process Loop with ThreadPool
-    update_status(f'Processing video with {modules.globals.execution_threads} threads...')
+    update_status(f'Procesando video con {modules.globals.execution_threads} hilos...')
     futures = deque()
     
     # Rotation check counter
@@ -419,7 +419,7 @@ def start() -> None:
 
     # 5. Restore Audio
     if modules.globals.keep_audio:
-        update_status('Restoring audio...')
+        update_status('Restaurando audio...')
         cmd_audio = [
             'ffmpeg', '-y', '-hide_banner', '-loglevel', 'error',
             '-i', temp_video_path,
@@ -438,11 +438,11 @@ def start() -> None:
     clean_temp(modules.globals.target_path)
     
     if os.path.exists(modules.globals.output_path):
-        update_status('Processing to video succeed!')
+        update_status('¡Video procesado correctamente!')
         
 
     else:
-        update_status('Processing to video failed!')
+        update_status('¡Falló el procesamiento del video!')
 
 
 def destroy(to_quit=True) -> None:

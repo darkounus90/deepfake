@@ -91,15 +91,15 @@ def pre_start() -> bool:
     from modules.core import update_status # This is for showing messages to the user
     # Checks if the source is an image
     if not is_image(modules.globals.source_path):
-        update_status('Select an image for source path.', NAME) # Tells the user to select an image
+        update_status('Selecciona una imagen de origen.', NAME) # Tells the user to select an image
         return False
     # Checks if there is a face in the source image
     elif not get_one_face(cv2.imread(modules.globals.source_path)):
-        update_status('No face in source path detected.', NAME) # Tells the user that there is no face in the source
+        update_status('No se detectó ninguna cara en la imagen de origen.', NAME) # Tells the user that there is no face in the source
         return False
     # Checks if the target is an image or a video
     if not is_image(modules.globals.target_path) and not is_video(modules.globals.target_path):
-        update_status('Select an image or video for target path.', NAME) # Tells the user to select an image or video
+        update_status('Selecciona una imagen o video de destino.', NAME) # Tells the user to select an image or video
         return False
     return True
 

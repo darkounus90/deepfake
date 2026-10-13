@@ -279,7 +279,7 @@ def create_root(start: Callable[[], None], destroy: Callable[[], None]) -> ctk.C
 
     # NOTE: All widgets are now parented to 'ui_container' instead of 'root'
 
-    info_label = ctk.CTkLabel(ui_container, text='Webcam takes 30 seconds to start on first face detection', justify='center')
+    info_label = ctk.CTkLabel(ui_container, text='La webcam tarda 30 segundos en iniciar con la primera detección de cara', justify='center')
     info_label.place(relx=0, rely=0, relwidth=1)
     fps_label = ctk.CTkLabel(ui_container, text='FPS:  ', justify='center',font=("Arial", 12))
     fps_label.place(relx=0, rely=0.04, relwidth=1)
@@ -287,7 +287,7 @@ def create_root(start: Callable[[], None], destroy: Callable[[], None]) -> ctk.C
     def update_det_freq(value):
         modules.globals.detection_frequency = int(value)
 
-    det_freq_label = ctk.CTkLabel(ui_container, text='Detect Freq:', font=("Arial", 12), anchor="e")
+    det_freq_label = ctk.CTkLabel(ui_container, text='Frec. detección:', font=("Arial", 12), anchor="e")
     det_freq_label.place(relx=0.36, rely=0.07, relwidth=0.2)
 
     det_freq_var = ctk.StringVar(value=str(modules.globals.detection_frequency))
@@ -310,19 +310,19 @@ def create_root(start: Callable[[], None], destroy: Callable[[], None]) -> ctk.C
     y_align = 3.35
 
     # Buttons for selecting source and target
-    select_face_button = ctk.CTkButton(ui_container, text='Select a face/s\n(left to right 10 faces max)', cursor='hand2', command=lambda: select_source_path())
+    select_face_button = ctk.CTkButton(ui_container, text='Seleccionar cara/s\n(izq. a der., máx. 10 caras)', cursor='hand2', command=lambda: select_source_path())
     select_face_button.place(relx=0.05, rely=y_start + 3.35*y_increment, relwidth=0.36, relheight=0.06)
 
     # Initialize and create rotation range dropdown
     filter_var = ctk.StringVar(value="Normal")
-    filter_dropdown = ctk.CTkOptionMenu(ui_container, values=["Normal", "White Ink", "Black Ink", "Pencil"],
+    filter_dropdown = ctk.CTkOptionMenu(ui_container, values=["Normal", "Tinta blanca", "Tinta negra", "Lápiz"],
                                         variable=filter_var,
                                         font=("Arial", 12),
                                         command=fliter)
     filter_dropdown.place(relx=0.42, rely=y_start + 3.35*y_increment, relwidth=0.17)
 
 
-    select_target_button = ctk.CTkButton(ui_container, text='Select a target\n( Image / Video )', cursor='hand2', command=lambda: select_target_path())
+    select_target_button = ctk.CTkButton(ui_container, text='Seleccionar destino\n( Imagen / Video )', cursor='hand2', command=lambda: select_target_path())
     select_target_button.place(relx=0.60, rely=y_start + 3.35*y_increment, relwidth=0.36, relheight=0.06)
 
 
@@ -342,7 +342,7 @@ def create_root(start: Callable[[], None], destroy: Callable[[], None]) -> ctk.C
         modules.globals.rot_range_dropdown_preview.set(size)
 
     # Create rotation range label
-    face_rot_label = ctk.CTkLabel(face_rot_frame, text="Face Rot Range (+90)-(-90) ->", font=("Arial", 16))
+    face_rot_label = ctk.CTkLabel(face_rot_frame, text="Rotación cara (+90)-(-90) ->", font=("Arial", 16))
     face_rot_label.place(relx=0.02, rely=0.5, relheight=0.5, anchor="w")
 
     # Initialize and create rotation range dropdown
@@ -359,7 +359,7 @@ def create_root(start: Callable[[], None], destroy: Callable[[], None]) -> ctk.C
     def update_freq(value):
         modules.globals.rotation_check_interval = int(value)
 
-    freq_label = ctk.CTkLabel(face_rot_frame, text="Freq:", font=("Arial", 12))
+    freq_label = ctk.CTkLabel(face_rot_frame, text="Frec.:", font=("Arial", 12))
     freq_label.place(relx=0.62, rely=0.5, anchor="e")
 
     freq_var = ctk.StringVar(value=str(modules.globals.rotation_check_interval))
@@ -400,7 +400,7 @@ def create_root(start: Callable[[], None], destroy: Callable[[], None]) -> ctk.C
 
     # Left column of switches
     both_faces_var = ctk.BooleanVar(value=modules.globals.both_faces)
-    both_faces_switch = ctk.CTkSwitch(ui_container, text='Use 1st 2 Faces', variable=both_faces_var, cursor='hand2',
+    both_faces_switch = ctk.CTkSwitch(ui_container, text='Usar las 2 primeras caras', variable=both_faces_var, cursor='hand2',
                                     command=lambda: both_faces(modules.globals, 'both_faces', both_faces_var.get()))
     both_faces_switch.place(relx=0.03, rely=y_start + 6.4*y_increment, relwidth=0.8)
 
@@ -423,27 +423,27 @@ def create_root(start: Callable[[], None], destroy: Callable[[], None]) -> ctk.C
     # mask_target_dropdown.place(relx=0.42, rely=y_start + 6.4*y_increment + 0.002, relwidth=0.10)
 
     flip_faces_value = ctk.BooleanVar(value=modules.globals.flip_faces)
-    flip_faces_switch = ctk.CTkSwitch(ui_container, text='Flip First Two Source Faces', variable=flip_faces_value, cursor='hand2',
+    flip_faces_switch = ctk.CTkSwitch(ui_container, text='Invertir las 2 caras de origen', variable=flip_faces_value, cursor='hand2',
                                     command=lambda: flip_faces('flip_faces', flip_faces_value.get()))
     flip_faces_switch.place(relx=0.03, rely=y_start + 7.1*y_increment, relwidth=0.8)
 
     detect_face_right_value = ctk.BooleanVar(value=modules.globals.detect_face_right)
-    detect_face_right_switch = ctk.CTkSwitch(ui_container, text='Detect Target Faces From Right', variable=detect_face_right_value, cursor='hand2',
+    detect_face_right_switch = ctk.CTkSwitch(ui_container, text='Detectar caras desde la derecha', variable=detect_face_right_value, cursor='hand2',
                                     command=lambda: detect_faces_right('detect_face_right', detect_face_right_value.get()))
     detect_face_right_switch.place(relx=0.03, rely=y_start + 7.8*y_increment, relwidth=0.8)
 
     many_faces_var = ctk.BooleanVar(value=modules.globals.many_faces)
-    many_faces_switch = ctk.CTkSwitch(ui_container, text='Use All Source Faces (10 Max)', variable=many_faces_var, cursor='hand2',
+    many_faces_switch = ctk.CTkSwitch(ui_container, text='Usar todas las caras de origen (máx. 10)', variable=many_faces_var, cursor='hand2',
                                     command=lambda: many_faces('many_faces', many_faces_var.get()))
     many_faces_switch.place(relx=0.03, rely=y_start + 8.5*y_increment, relwidth=0.8)
 
     show_target_face_box_var = ctk.BooleanVar(value=modules.globals.show_target_face_box)
-    show_target_face_box_switch = ctk.CTkSwitch(ui_container, text='Show InsightFace Landmarks', variable=show_target_face_box_var, cursor='hand2',
+    show_target_face_box_switch = ctk.CTkSwitch(ui_container, text='Mostrar puntos faciales (InsightFace)', variable=show_target_face_box_var, cursor='hand2',
                                     command=lambda: setattr(modules.globals, 'show_target_face_box', show_target_face_box_var.get()))
     show_target_face_box_switch.place(relx=0.03, rely=y_start + 9.2*y_increment, relwidth=0.8)
 
     show_mouth_mask_var = ctk.BooleanVar(value=modules.globals.show_mouth_mask_box)
-    show_mouth_mask_switch = ctk.CTkSwitch(ui_container, text='Show Mouth Mask Box', variable=show_mouth_mask_var, cursor='hand2',
+    show_mouth_mask_switch = ctk.CTkSwitch(ui_container, text='Mostrar recuadro de máscara de boca', variable=show_mouth_mask_var, cursor='hand2',
                                     command=lambda: setattr(modules.globals, 'show_mouth_mask_box', show_mouth_mask_var.get()))
     show_mouth_mask_switch.place(relx=0.03, rely=y_start + 9.9*y_increment, relwidth=0.8)
 
@@ -461,7 +461,7 @@ def create_root(start: Callable[[], None], destroy: Callable[[], None]) -> ctk.C
     live_flip_x_var = ctk.BooleanVar(value=modules.globals.flip_x)
 
 
-    live_flip_x_vswitch = ctk.CTkSwitch(ui_container, text='Flip X',variable=modules.globals.flipX_var, cursor='hand2',
+    live_flip_x_vswitch = ctk.CTkSwitch(ui_container, text='Voltear X',variable=modules.globals.flipX_var, cursor='hand2',
                                       command=toggle_flipX)
     live_flip_x_vswitch.place(relx=0.55, rely=y_start + 6.4*y_increment, relwidth=0.2)
 
@@ -482,7 +482,7 @@ def create_root(start: Callable[[], None], destroy: Callable[[], None]) -> ctk.C
 
 
     live_flip_y_var = ctk.BooleanVar(value=modules.globals.flip_y)
-    live_flip_y_switch = ctk.CTkSwitch(ui_container, text='Flip Y',variable=modules.globals.flipY_var, cursor='hand2',
+    live_flip_y_switch = ctk.CTkSwitch(ui_container, text='Voltear Y',variable=modules.globals.flipY_var, cursor='hand2',
                                       command=toggle_flipY)
     live_flip_y_switch.place(relx=0.80, rely=y_start + 6.4*y_increment, relwidth=0.2)
 
@@ -490,27 +490,27 @@ def create_root(start: Callable[[], None], destroy: Callable[[], None]) -> ctk.C
     modules.globals.flipY_switch_preview = live_flip_y_switch
 
     keep_fps_var = ctk.BooleanVar(value=modules.globals.keep_fps)
-    keep_fps_switch = ctk.CTkSwitch(ui_container, text='Keep fps', variable=keep_fps_var, cursor='hand2',
+    keep_fps_switch = ctk.CTkSwitch(ui_container, text='Mantener FPS', variable=keep_fps_var, cursor='hand2',
                                     command=lambda: setattr(modules.globals, 'keep_fps', keep_fps_var.get()))
     keep_fps_switch.place(relx=0.55, rely=y_start + 7.1*y_increment, relwidth=0.4)
 
     keep_audio_var = ctk.BooleanVar(value=modules.globals.keep_audio)
-    keep_audio_switch = ctk.CTkSwitch(ui_container, text='Keep Audio', variable=keep_audio_var, cursor='hand2',
+    keep_audio_switch = ctk.CTkSwitch(ui_container, text='Mantener audio', variable=keep_audio_var, cursor='hand2',
                                     command=lambda: setattr(modules.globals, 'keep_audio', keep_audio_var.get()))
     keep_audio_switch.place(relx=0.55, rely=y_start + 7.8*y_increment, relwidth=0.4)
 
     keep_frames_var = ctk.BooleanVar(value=modules.globals.keep_frames)
-    keep_frames_switch = ctk.CTkSwitch(ui_container, text='Keep Frames', variable=keep_frames_var, cursor='hand2',
+    keep_frames_switch = ctk.CTkSwitch(ui_container, text='Mantener fotogramas', variable=keep_frames_var, cursor='hand2',
                                     command=lambda: setattr(modules.globals, 'keep_frames', keep_frames_var.get()))
     keep_frames_switch.place(relx=0.55, rely=y_start + 8.5*y_increment, relwidth=0.4)
 
     nsfw_filter_var = ctk.BooleanVar(value=modules.globals.nsfw_filter)
-    nsfw_filter_switch = ctk.CTkSwitch(ui_container, text='NSFW Filter', variable=nsfw_filter_var, cursor='hand2',
+    nsfw_filter_switch = ctk.CTkSwitch(ui_container, text='Filtro NSFW', variable=nsfw_filter_var, cursor='hand2',
                                     command=lambda: setattr(modules.globals, 'nsfw_filter', nsfw_filter_var.get()))
     nsfw_filter_switch.place(relx=0.55, rely=y_start + 9.2*y_increment, relwidth=0.4)
 
     enhancer_value = ctk.BooleanVar(value=modules.globals.fp_ui['face_enhancer'])
-    enhancer_switch = ctk.CTkSwitch(ui_container, text='Face Enhancer (Video)', variable=enhancer_value, cursor='hand2',
+    enhancer_switch = ctk.CTkSwitch(ui_container, text='Mejorar cara (Video)', variable=enhancer_value, cursor='hand2',
                                     command=lambda: update_tumbler('face_enhancer', enhancer_value.get()))
     enhancer_switch.place(relx=0.55, rely=y_start + 9.9*y_increment, relwidth=0.4)
 
@@ -532,7 +532,7 @@ def create_root(start: Callable[[], None], destroy: Callable[[], None]) -> ctk.C
         if hasattr(modules.globals, 'mouth_mask_switch_preview'):
             modules.globals.mouth_mask_switch_preview.select() if is_mouthmask else modules.globals.mouth_mask_switch_preview.deselect()
 
-    mouth_mask_switch = ctk.CTkSwitch(outline_frame, text='Mouth Mask (M) | Feather, Padding, Top ->', 
+    mouth_mask_switch = ctk.CTkSwitch(outline_frame, text='Máscara de boca (M) | Difuminado, Margen, Arriba ->', 
                                       variable=modules.globals.mouth_mask_var, cursor='hand2',
                                       command=toggle_mouthmask)
     mouth_mask_switch.place(relx=0.02, rely=0.5, relwidth=0.6, relheight=0.5, anchor="w")
@@ -570,13 +570,13 @@ def create_root(start: Callable[[], None], destroy: Callable[[], None]) -> ctk.C
     # outline_face_track_frame.place(relx=0.02, rely=y_start + 11.9*y_increment, relwidth=0.96, relheight=0.24)
      # Face Tracking switch
     face_tracking_value = ctk.BooleanVar(value=modules.globals.face_tracking)
-    face_tracking_switch = ctk.CTkSwitch(outline_face_track_frame, text='Auto Face Track', variable=face_tracking_value, cursor='hand2',
+    face_tracking_switch = ctk.CTkSwitch(outline_face_track_frame, text='Seguimiento automático', variable=face_tracking_value, cursor='hand2',
                                     command=lambda: face_tracking('face_tracking', face_tracking_value.get()))
     face_tracking_switch.place(relx=0.02, rely=0.1, relwidth=0.4)
 
     # Pseudo Face switch
     pseudo_face_var = ctk.BooleanVar(value=modules.globals.use_pseudo_face)
-    pseudo_face_switch = ctk.CTkSwitch(outline_face_track_frame, text='Pseudo Face\n(fake face\nfor occlusions)', variable=pseudo_face_var, cursor='hand2',
+    pseudo_face_switch = ctk.CTkSwitch(outline_face_track_frame, text='Pseudo cara\n(cara falsa\npara oclusiones)', variable=pseudo_face_var, cursor='hand2',
                                     command=lambda: setattr(modules.globals, 'use_pseudo_face', pseudo_face_var.get()))
     pseudo_face_switch.place(relx=0.02, rely=0.3, relwidth=0.4)
 
@@ -588,34 +588,34 @@ def create_root(start: Callable[[], None], destroy: Callable[[], None]) -> ctk.C
    
     tempFontSiz=10
     # Face Cosine Similarity label
-    similarity_label = ctk.CTkLabel(red_box_frame, text="Similarity * Position",font=("Arial", 14) )
+    similarity_label = ctk.CTkLabel(red_box_frame, text="Similitud * Posición",font=("Arial", 14) )
     similarity_label.place(relx=0.05, rely=0.01, relwidth=0.85 )
     # Target Face 1 label and value
-    target_face1_label = ctk.CTkLabel(red_box_frame, text="Face 1:", font=("Arial", tempFontSiz))
+    target_face1_label = ctk.CTkLabel(red_box_frame, text="Cara 1:", font=("Arial", tempFontSiz))
     target_face1_label.place(relx=0.02, rely=0.18, relwidth=0.3)
 
     target_face1_value = ctk.CTkLabel(red_box_frame, text="0.00", anchor="w", font=("Arial", tempFontSiz))
     target_face1_value.place(relx=0.30, rely=0.18, relwidth=0.2)
     # Target Face 2 label and value
-    target_face2_label = ctk.CTkLabel(red_box_frame, text="Face 2:", font=("Arial", tempFontSiz))
+    target_face2_label = ctk.CTkLabel(red_box_frame, text="Cara 2:", font=("Arial", tempFontSiz))
     target_face2_label.place(relx=0.02, rely=0.30, relwidth=0.3)
 
     target_face2_value = ctk.CTkLabel(red_box_frame, text="0.00", anchor="w", font=("Arial", tempFontSiz))
     target_face2_value.place(relx=0.30, rely=0.30, relwidth=0.2)
 
-    target_face3_label = ctk.CTkLabel(red_box_frame, text="Face 3:", font=("Arial", tempFontSiz))
+    target_face3_label = ctk.CTkLabel(red_box_frame, text="Cara 3:", font=("Arial", tempFontSiz))
     target_face3_label.place(relx=0.02, rely=0.42, relwidth=0.3)
 
     target_face3_value = ctk.CTkLabel(red_box_frame, text="0.00", anchor="w", font=("Arial", tempFontSiz))
     target_face3_value.place(relx=0.30, rely=0.42, relwidth=0.2)
 
-    target_face4_label = ctk.CTkLabel(red_box_frame, text="Face 4:", font=("Arial", tempFontSiz))
+    target_face4_label = ctk.CTkLabel(red_box_frame, text="Cara 4:", font=("Arial", tempFontSiz))
     target_face4_label.place(relx=0.02, rely=0.54, relwidth=0.3)
 
     target_face4_value = ctk.CTkLabel(red_box_frame, text="0.00", anchor="w", font=("Arial", tempFontSiz))
     target_face4_value.place(relx=0.30, rely=0.54, relwidth=0.2)
 
-    target_face5_label = ctk.CTkLabel(red_box_frame, text="Face 5:", font=("Arial", tempFontSiz))
+    target_face5_label = ctk.CTkLabel(red_box_frame, text="Cara 5:", font=("Arial", tempFontSiz))
     target_face5_label.place(relx=0.02, rely=0.66, relwidth=0.3)
 
     target_face5_value = ctk.CTkLabel(red_box_frame, text="0.00", anchor="w", font=("Arial", tempFontSiz))
@@ -623,31 +623,31 @@ def create_root(start: Callable[[], None], destroy: Callable[[], None]) -> ctk.C
 
 
 
-    target_face6_label = ctk.CTkLabel(red_box_frame, text="Face 6:", font=("Arial", tempFontSiz))
+    target_face6_label = ctk.CTkLabel(red_box_frame, text="Cara 6:", font=("Arial", tempFontSiz))
     target_face6_label.place(relx=0.50, rely=0.18, relwidth=0.3)
 
     target_face6_value = ctk.CTkLabel(red_box_frame, text="0.00", anchor="w", font=("Arial", tempFontSiz))
     target_face6_value.place(relx=0.78, rely=0.18, relwidth=0.2)
 
-    target_face7_label = ctk.CTkLabel(red_box_frame, text="Face 7:", font=("Arial", tempFontSiz))
+    target_face7_label = ctk.CTkLabel(red_box_frame, text="Cara 7:", font=("Arial", tempFontSiz))
     target_face7_label.place(relx=0.50, rely=0.30, relwidth=0.3)
 
     target_face7_value = ctk.CTkLabel(red_box_frame, text="0.00", anchor="w", font=("Arial", tempFontSiz))
     target_face7_value.place(relx=0.78, rely=0.30, relwidth=0.2)
 
-    target_face8_label = ctk.CTkLabel(red_box_frame, text="Face 8:", font=("Arial", tempFontSiz))
+    target_face8_label = ctk.CTkLabel(red_box_frame, text="Cara 8:", font=("Arial", tempFontSiz))
     target_face8_label.place(relx=0.50, rely=0.42, relwidth=0.3)
 
     target_face8_value = ctk.CTkLabel(red_box_frame, text="0.00", anchor="w", font=("Arial", tempFontSiz))
     target_face8_value.place(relx=0.78, rely=0.42, relwidth=0.2)
 
-    target_face9_label = ctk.CTkLabel(red_box_frame, text="Face 9:", font=("Arial", tempFontSiz))
+    target_face9_label = ctk.CTkLabel(red_box_frame, text="Cara 9:", font=("Arial", tempFontSiz))
     target_face9_label.place(relx=0.50, rely=0.54, relwidth=0.3)
 
     target_face9_value = ctk.CTkLabel(red_box_frame, text="0.00", anchor="w", font=("Arial", tempFontSiz))
     target_face9_value.place(relx=0.78, rely=0.54, relwidth=0.2)
 
-    target_face10_label = ctk.CTkLabel(red_box_frame, text="Face 10:", font=("Arial", tempFontSiz))
+    target_face10_label = ctk.CTkLabel(red_box_frame, text="Cara 10:", font=("Arial", tempFontSiz))
     target_face10_label.place(relx=0.52, rely=0.66, relwidth=0.3)
 
     target_face10_value = ctk.CTkLabel(red_box_frame, text="0.00", anchor="w", font=("Arial", tempFontSiz))
@@ -658,7 +658,7 @@ def create_root(start: Callable[[], None], destroy: Callable[[], None]) -> ctk.C
 
 
     # Stickiness Factor label
-    stickiness_label = ctk.CTkLabel(outline_face_track_frame, text="Stickiness Factor",font=("Arial", 14))
+    stickiness_label = ctk.CTkLabel(outline_face_track_frame, text="Factor de adherencia",font=("Arial", 14))
     stickiness_label.place(relx=0.72, rely=0.01, relwidth=0.2)
 
     # Stickiness Greater label
@@ -685,16 +685,16 @@ def create_root(start: Callable[[], None], destroy: Callable[[], None]) -> ctk.C
     pseudo_threshold_dropdown.place(relx=0.75, rely=0.30, relwidth=0.15)
 
     # Pseudo Threshold label
-    pseudo_threshold_label = ctk.CTkLabel(outline_face_track_frame, text="Pseudo Threshold",font=("Arial", 14))
+    pseudo_threshold_label = ctk.CTkLabel(outline_face_track_frame, text="Umbral pseudo cara",font=("Arial", 14))
     pseudo_threshold_label.place(relx=0.72, rely=0.42, relwidth=0.2)
 
 
     # Clear Face Tracking Data button
-    clear_tracking_button = ctk.CTkButton(outline_face_track_frame, text="Reset Face Tracking", 
+    clear_tracking_button = ctk.CTkButton(outline_face_track_frame, text="Reiniciar seguimiento", 
                                         command=clear_face_tracking_data)
     clear_tracking_button.place(relx=0.65, rely=0.55, relwidth=0.34)
 
-    track_settings_label = ctk.CTkLabel(outline_face_track_frame, text="Embedding Weight   *   Weight Distribution   +   Position Weight            Old Weight   +   New Weight", font=("Arial", 12))
+    track_settings_label = ctk.CTkLabel(outline_face_track_frame, text="Peso identidad   *   Distribución de peso   +   Peso posición            Peso anterior   +   Peso nuevo", font=("Arial", 12))
     track_settings_label.place(relx=0.01, rely=0.68, relwidth=0.96)
 
 
@@ -738,19 +738,19 @@ def create_root(start: Callable[[], None], destroy: Callable[[], None]) -> ctk.C
     button_y = 0.85  # Y position of the buttons
     space_between = (1 - (button_width * 5)) / 6  # Space between buttons
 
-    start_button = ctk.CTkButton(ui_container, text='Start', cursor='hand2', command=lambda: select_output_path(start))
+    start_button = ctk.CTkButton(ui_container, text='Iniciar', cursor='hand2', command=lambda: select_output_path(start))
     start_button.place(relx=space_between, rely=button_y, relwidth=button_width, relheight=button_height)
 
-    preview_button = ctk.CTkButton(ui_container, text='Preview', cursor='hand2', command=lambda: toggle_preview())
+    preview_button = ctk.CTkButton(ui_container, text='Vista previa', cursor='hand2', command=lambda: toggle_preview())
     preview_button.place(relx=space_between*2 + button_width, rely=button_y, relwidth=button_width, relheight=button_height)
 
-    donate_button = ctk.CTkButton(ui_container, text='BuyMeACoffee', cursor='hand2', 
+    donate_button = ctk.CTkButton(ui_container, text='Invítame un café', cursor='hand2', 
                                  command=lambda: webbrowser.open('https://buymeacoffee.com/ivideogameboss'),
                                  font=("Arial", 14))  # Added font parameter here
     donate_button.place(relx=space_between*3 + button_width*2, rely=button_y, relwidth=button_width, relheight=button_height)
 
 
-    live_button = ctk.CTkButton(ui_container, text='Live', cursor='hand2', command=lambda: webcam_preview(), fg_color="green", hover_color="dark green")
+    live_button = ctk.CTkButton(ui_container, text='En vivo', cursor='hand2', command=lambda: webcam_preview(), fg_color="green", hover_color="dark green")
     live_button.place(relx=space_between*4 + button_width*3, rely=button_y, relwidth=button_width, relheight=button_height)
 
     preview_size_var = ctk.StringVar(value="640x360")
@@ -763,7 +763,7 @@ def create_root(start: Callable[[], None], destroy: Callable[[], None]) -> ctk.C
     button_y = 0.91  # Y position of the buttons
 
     # --- Camera Selection ---
-    camera_label = ctk.CTkLabel(ui_container, text="Select Camera:")
+    camera_label = ctk.CTkLabel(ui_container, text="Cámara:")
     camera_label.place(relx=0.03, rely=button_y, relwidth=button_width+0.05)
 
     # Get available cameras
@@ -772,19 +772,19 @@ def create_root(start: Callable[[], None], destroy: Callable[[], None]) -> ctk.C
         camera_names = [f"{cam.name} ({cam.index})" for cam in available_cameras]
         if not camera_names:
            
-           initial_camera = "Select Default Camera"
+           initial_camera = "Cámara predeterminada"
            modules.globals.camera_index = 0
         else:
           # Set the initial camera if available
           initial_camera = camera_names[0]
         
     except Exception:
-          camera_names = ["Select Default Camera"]
-          initial_camera = "Select Default Camera"
+          camera_names = ["Cámara predeterminada"]
+          initial_camera = "Cámara predeterminada"
           modules.globals.camera_index = 0
         
     camera_var = ctk.StringVar(value=initial_camera)
-    camera_optionmenu = ctk.CTkOptionMenu(ui_container, values=camera_names if camera_names else ["Select Default Camera"],
+    camera_optionmenu = ctk.CTkOptionMenu(ui_container, values=camera_names if camera_names else ["Cámara predeterminada"],
                                               variable=camera_var,
                                               command=select_camera,  # Corrected line: pass function directly
                                               fg_color="grey", button_color="dark grey", button_hover_color="light grey")
@@ -795,7 +795,7 @@ def create_root(start: Callable[[], None], destroy: Callable[[], None]) -> ctk.C
     modules.globals.camera_optionmenu = camera_optionmenu
 
     # Select the first camera if available
-    if initial_camera != "Select Default Camera":
+    if initial_camera != "Cámara predeterminada":
       select_camera()
 
     
@@ -864,7 +864,7 @@ def create_preview_image(parent: ctk.CTkToplevel) -> ctk.CTkToplevel:
 
     preview = ctk.CTkToplevel(parent)
     preview.withdraw()
-    preview.title('Image Preview')
+    preview.title('Vista previa de imagen')
     preview.configure()
     preview.protocol('WM_DELETE_WINDOW', lambda: toggle_preview())
     preview.resizable(width=True, height=True)
@@ -882,7 +882,7 @@ def create_preview(parent: ctk.CTkToplevel) -> ctk.CTkToplevel:
 
     preview = ctk.CTkToplevel(parent)
     preview.withdraw()
-    preview.title('Double Click hide Toolbar. Always Reset Face Tracking When no Faces, Switching Live Video Stream, or New Faces. Face Index (-1) Auto')
+    preview.title('Doble clic oculta la barra. Reinicia el seguimiento si no hay caras, al cambiar de transmisión o con caras nuevas. Índice de cara (-1) = Auto')
     preview.configure()
     preview.protocol('WM_DELETE_WINDOW', lambda: toggle_preview())
     preview.resizable(width=True, height=True)
@@ -903,7 +903,7 @@ def create_preview(parent: ctk.CTkToplevel) -> ctk.CTkToplevel:
             preview.lift() 
 
     topmost_var = ctk.BooleanVar(value=False)
-    topmost_switch = ctk.CTkSwitch(button_row, text='Stay on Top', variable=topmost_var, cursor='hand2',
+    topmost_switch = ctk.CTkSwitch(button_row, text='Siempre visible', variable=topmost_var, cursor='hand2',
                                    command=toggle_topmost)
     topmost_switch.pack(side='left', padx=5, pady=5)
 
@@ -919,7 +919,7 @@ def create_preview(parent: ctk.CTkToplevel) -> ctk.CTkToplevel:
                 modules.globals.mouth_mask_switch_preview.deselect()
         refresh_preview() # <--- REFRESH ADDED
 
-    mouth_mask_switch_preview = ctk.CTkSwitch(button_row, text='Mouth Mask', 
+    mouth_mask_switch_preview = ctk.CTkSwitch(button_row, text='Máscara de boca', 
                                               variable=modules.globals.mouth_mask_var, cursor='hand2',
                                               command=toggle_mouthmask)
     mouth_mask_switch_preview.pack(side='left', padx=5, pady=5)
@@ -934,7 +934,7 @@ def create_preview(parent: ctk.CTkToplevel) -> ctk.CTkToplevel:
             pass
         refresh_preview() # <--- REFRESH ADDED
 
-    flipX_switch = ctk.CTkSwitch(button_row, text=' Flip X', 
+    flipX_switch = ctk.CTkSwitch(button_row, text=' Voltear X', 
                                  variable=modules.globals.flipX_var, cursor='hand2',
                                  command=toggle_flipX)
     flipX_switch.pack(side='left', padx=5, pady=5)
@@ -946,7 +946,7 @@ def create_preview(parent: ctk.CTkToplevel) -> ctk.CTkToplevel:
         modules.globals.flip_y = is_flipY
         refresh_preview() # <--- REFRESH ADDED
 
-    flipY_switch = ctk.CTkSwitch(button_row, text=' Flip Y', 
+    flipY_switch = ctk.CTkSwitch(button_row, text=' Voltear Y', 
                                  variable=modules.globals.flipY_var, cursor='hand2',
                                  command=toggle_flipY)
     flipY_switch.pack(side='left', padx=5, pady=5)
@@ -964,13 +964,13 @@ def create_preview(parent: ctk.CTkToplevel) -> ctk.CTkToplevel:
     def toggle_lock_person_preview():
         set_lock_person(modules.globals.lock_person_var.get())
 
-    lock_person_switch = ctk.CTkSwitch(button_row, text='Lock People',
+    lock_person_switch = ctk.CTkSwitch(button_row, text='Bloquear personas',
                                        variable=modules.globals.lock_person_var,
                                        command=toggle_lock_person_preview,
                                        width=50)
     lock_person_switch.pack(side='left', padx=5, pady=5)
 
-    face_rot_label = ctk.CTkLabel(button_row, text=" | Rot Range ", font=("Arial", 16))
+    face_rot_label = ctk.CTkLabel(button_row, text=" | Rotación ", font=("Arial", 16))
     face_rot_label.pack(side='left', padx=5, pady=5)
 
     # --- AUTO ROTATE SWITCH (PREVIEW) ---
@@ -1039,7 +1039,7 @@ def create_preview(parent: ctk.CTkToplevel) -> ctk.CTkToplevel:
         modules.globals.face_forehead_var = new_float_value
         refresh_preview() # <--- REFRESH ADDED
 
-    face_forehead_index = ctk.CTkLabel(button_row, text=" | Forehead ", font=("Arial", 16))
+    face_forehead_index = ctk.CTkLabel(button_row, text=" | Frente ", font=("Arial", 16))
     face_forehead_index.pack(side='left', padx=5, pady=5)
 
     face_forehead_size_var = ctk.StringVar(value="0.1")
@@ -1049,7 +1049,7 @@ def create_preview(parent: ctk.CTkToplevel) -> ctk.CTkToplevel:
     face_forehead_index_dropdown_preview.pack(side='left', padx=5, pady=5)
 
     # Hotkeys label
-    hotkey_text = "Hotkeys: Auto Track (A) | Reset Track (T) | Lock People (L) | Mouth Mask (M) | Mask Face 1-10 (1-0)"
+    hotkey_text = "Atajos: Seguimiento auto (A) | Reiniciar seguimiento (T) | Bloquear personas (L) | Máscara de boca (M) | Máscara cara 1-10 (1-0)"
     hotkey_index = ctk.CTkLabel(switch_frame, text=hotkey_text, font=("Arial", 12), text_color="gray")
     hotkey_index.pack(side='top', fill='x', padx=10, pady=(0, 5), anchor='w')
 
@@ -1099,7 +1099,7 @@ def select_source_path() -> None:
 
     PREVIEW.withdraw()
     # PREVIEW_IMAGE.withdraw()
-    source_path = ctk.filedialog.askopenfilename(title='select an source image', initialdir=RECENT_DIRECTORY_SOURCE, filetypes=[img_ft])
+    source_path = ctk.filedialog.askopenfilename(title='Selecciona una imagen de origen', initialdir=RECENT_DIRECTORY_SOURCE, filetypes=[img_ft])
     if is_image(source_path):
         modules.globals.source_path = source_path
         RECENT_DIRECTORY_SOURCE = os.path.dirname(modules.globals.source_path)
@@ -1120,17 +1120,17 @@ def fliter(*args):
     modules.globals.use_ink_filter_black=False
     modules.globals.use_black_lines=False
 
-    if size=="White Ink":
+    if size=="Tinta blanca":
         modules.globals.use_pencil_filter=False
         modules.globals.use_ink_filter_white=True
         modules.globals.use_ink_filter_black=False
         modules.globals.use_black_lines=True
-    if size=="Black Ink":
+    if size=="Tinta negra":
         modules.globals.use_pencil_filter=False
         modules.globals.use_ink_filter_white=False
         modules.globals.use_ink_filter_black=True
         modules.globals.use_black_lines=False
-    if size=="Pencil":
+    if size=="Lápiz":
         modules.globals.use_pencil_filter=True
         modules.globals.use_ink_filter_white=False
         modules.globals.use_ink_filter_black=False
@@ -1142,7 +1142,7 @@ def select_target_path() -> None:
 
     PREVIEW.withdraw()
     # PREVIEW_IMAGE.withdraw()
-    target_path = ctk.filedialog.askopenfilename(title='select an target image or video', initialdir=RECENT_DIRECTORY_TARGET, filetypes=[img_ft, vid_ft])
+    target_path = ctk.filedialog.askopenfilename(title='Selecciona una imagen o video de destino', initialdir=RECENT_DIRECTORY_TARGET, filetypes=[img_ft, vid_ft])
     if is_image(target_path):
         modules.globals.target_path = target_path
         RECENT_DIRECTORY_TARGET = os.path.dirname(modules.globals.target_path)
@@ -1171,9 +1171,9 @@ def select_output_path(start: Callable[[], None]) -> None:
     global RECENT_DIRECTORY_OUTPUT, img_ft, vid_ft
 
     if is_image(modules.globals.target_path):
-        output_path = ctk.filedialog.asksaveasfilename(title='save image output file', filetypes=[img_ft], defaultextension='.png', initialfile='output.png', initialdir=RECENT_DIRECTORY_OUTPUT)
+        output_path = ctk.filedialog.asksaveasfilename(title='Guardar imagen resultante', filetypes=[img_ft], defaultextension='.png', initialfile='resultado.png', initialdir=RECENT_DIRECTORY_OUTPUT)
     elif is_video(modules.globals.target_path):
-        output_path = ctk.filedialog.asksaveasfilename(title='save video output file', filetypes=[vid_ft], defaultextension='.mp4', initialfile='output.mp4', initialdir=RECENT_DIRECTORY_OUTPUT)
+        output_path = ctk.filedialog.asksaveasfilename(title='Guardar video resultante', filetypes=[vid_ft], defaultextension='.mp4', initialfile='resultado.mp4', initialdir=RECENT_DIRECTORY_OUTPUT)
     else:
         output_path = None
     if output_path:
@@ -1193,7 +1193,7 @@ def check_and_ignore_nsfw(target, destroy: Callable = None) -> bool:
         check_nsfw = predict_frame
     if check_nsfw and check_nsfw(target):
         if destroy: destroy(to_quit=False) # Do not need to destroy the window frame if the target is NSFW
-        update_status('Processing ignored!')
+        update_status('¡Procesamiento cancelado!')
         return True
     else: return False
 
@@ -1256,7 +1256,7 @@ def init_preview() -> None:
 
 def update_preview(frame_number: int = 0) -> None:
     if modules.globals.source_path and modules.globals.target_path:
-        update_status('Processing...')
+        update_status('Procesando...')
         
         # (Your previous fix for Image/Video loading)
         if is_image(modules.globals.target_path):
@@ -1269,7 +1269,7 @@ def update_preview(frame_number: int = 0) -> None:
             if preview_slider: preview_slider.pack(fill='x', side='bottom')
 
         if temp_frame is None:
-            update_status('Error: Could not load target file.')
+            update_status('Error: no se pudo cargar el archivo de destino.')
             return
 
         if modules.globals.nsfw_filter and check_and_ignore_nsfw(temp_frame):
@@ -1305,7 +1305,7 @@ def update_preview(frame_number: int = 0) -> None:
 
         # no face found
         if not source_images:
-            print('No face found in source image')
+            print('No se encontró ninguna cara en la imagen de origen')
             return
         
         if modules.globals.flip_x:
@@ -1328,7 +1328,7 @@ def update_preview(frame_number: int = 0) -> None:
         
         image = ctk.CTkImage(image, size=image.size)
         preview_label.configure(image=image)
-        update_status('Processing succeed!')
+        update_status('¡Procesamiento completado!')
         
         # USE PREVIEW WINDOW (The one with the toolbar)
         PREVIEW.deiconify()
@@ -1369,7 +1369,7 @@ def webcam_preview():
 
     # --- CONFIGURE DROPDOWNS (From your code - logic moved here because worker has source_images) ---
     if not worker.source_images:
-        print('No face found in source image')
+        print('No se encontró ninguna cara en la imagen de origen')
         worker.stop()
         if enhancer_switch:
             enhancer_switch.configure(state="normal")
@@ -1706,7 +1706,7 @@ def toggle_face_tracking_hotkey():
         face_tracking_value.set(val)
         modules.globals.face_tracking = val
         face_tracking(None) # Update UI state
-        update_status(f"Auto Face Tracking: {'On' if val else 'Off'}")
+        update_status(f"Seguimiento automático: {'Activado' if val else 'Desactivado'}")
         refresh_preview()
 
 def set_lock_person(value: bool):
@@ -1716,14 +1716,14 @@ def set_lock_person(value: bool):
     # Forget any previous identity so the lock picks the person in view now
     clear_face_tracking_data()
     people = 2 if modules.globals.both_faces else 1
-    update_status(f"Lock People: {'On (' + str(people) + ')' if value else 'Off'}")
+    update_status(f"Bloquear personas: {'Activado (' + str(people) + ')' if value else 'Desactivado'}")
 
 def toggle_lock_person_hotkey():
     set_lock_person(not modules.globals.lock_person)
 
 def reset_face_tracking_hotkey():
     clear_face_tracking_data()
-    update_status("Face Tracking Reset")
+    update_status("Seguimiento reiniciado")
     refresh_preview()
 
 def toggle_mouth_mask_global_hotkey():
@@ -1731,11 +1731,11 @@ def toggle_mouth_mask_global_hotkey():
         val = not modules.globals.mouth_mask_var.get()
         modules.globals.mouth_mask_var.set(val)
         modules.globals.mouth_mask = val
-        update_status(f"Mouth Mask: {'On' if val else 'Off'}")
+        update_status(f"Máscara de boca: {'Activada' if val else 'Desactivada'}")
         refresh_preview()
 
 def toggle_mouth_mask_face_hotkey(index):
     modules.globals.mouth_mask_enabled_faces[index] = not modules.globals.mouth_mask_enabled_faces[index]
-    state = "On" if modules.globals.mouth_mask_enabled_faces[index] else "Off"
-    update_status(f"Mouth Mask Face {index + 1}: {state}")
+    state = "Activada" if modules.globals.mouth_mask_enabled_faces[index] else "Desactivada"
+    update_status(f"Máscara de boca cara {index + 1}: {state}")
     refresh_preview()    

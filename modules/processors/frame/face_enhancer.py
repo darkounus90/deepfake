@@ -31,7 +31,7 @@ def pre_start() -> bool:
     from modules.core import update_status 
     
     if not is_image(modules.globals.target_path) and not is_video(modules.globals.target_path):
-        update_status('Select an image or video for target path.', NAME)
+        update_status('Selecciona una imagen o video de destino.', NAME)
         return False
     return True
 
